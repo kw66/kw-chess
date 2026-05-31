@@ -1,0 +1,4140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">科王象棋</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Microsoft YaHei', sans-serif;
+  color: #eee;
+  user-select: none;
+  padding: 12px 0;
+}
+#turn-indicator {
+  padding: 3px 14px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+#turn-indicator.red   { background:#c0392b; color:#fff; }
+#turn-indicator.black { background:#2c3e50; color:#fff; border:1px solid #aaa; }
+#turn-indicator.draw  { background:#555; color:#fff; }
+#message { color:#f0c060; font-size:0.88rem; white-space:nowrap; }
+
+/* 主布局：左侧损失列 + 棋盘中心 + 日志面板 */
+#game-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+#cap-col {
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 47px;
+  gap: 2px;
+}
+.cap-col-label {
+  font-size: 0.65rem;
+  color: #777;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  text-align: center;
+  line-height: 1.3;
+}
+.cap-section-label {
+  font-size: 0.62rem;
+  color: #555;
+  margin-top: 5px;
+  margin-bottom: 2px;
+}
+.cap-piece-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  width: 100%;
+}
+#center-col { display: flex; flex-direction: column; align-items: center; }
+
+#board-wrap {
+  position: relative;
+  background: #c8a96e;
+  border: 3px solid #7a5c2e;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px #0008, 0 0 0 6px #7a5c2e44;
+}
+canvas { display: block; max-width: 100%; height: auto; }
+
+/* iframe 嵌入模式：只显示棋盘，统计数据由外层 app 面板展示 */
+body.in-iframe {
+  padding: 4px 0;
+}
+body.in-iframe #board-wrap { max-width: 100%; }
+body.in-iframe #log-panel,
+body.in-iframe #cap-col { display: none; }
+
+#info-bar {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  width: 100%;
+}
+#controls { margin-top: 4px; display:flex; gap:8px; align-items:center; }
+
+/* ── 右侧日志面板 ── */
+#log-panel {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: flex-start;
+}
+#score-header {
+  background: #16162a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 10px;
+}
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.wr-label { font-size:0.72rem; color:#888; min-width:30px; }
+.wr-label.red  { color:#e05050; text-align:right; }
+.wr-label.blk  { color:#8ab4c8; }
+.wr-pct { font-size:0.88rem; font-weight:bold; min-width:34px; }
+.wr-pct.red { color:#e05050; text-align:right; }
+.wr-pct.blk { color:#8ab4c8; }
+#score-track {
+  flex:1; height:8px; background:#222240;
+  border-radius:4px; overflow:hidden; position:relative;
+}
+#score-fill-red {
+  position:absolute; left:0; top:0; height:100%;
+  background: linear-gradient(90deg,#c0392b,#e74c3c);
+  border-radius:4px 0 0 4px;
+  transition: width 0.35s ease;
+}
+#score-fill-blk {
+  position:absolute; right:0; top:0; height:100%;
+  background: linear-gradient(90deg,#5d8fa8,#3d7a9a);
+  border-radius:0 4px 4px 0;
+  transition: width 0.35s ease;
+}
+#score-advantage {
+  text-align:center; font-size:0.75rem; color:#aaa;
+  margin-bottom:6px; min-height:1em;
+}
+#winrate-canvas {
+  display:block; width:100%; border-radius:4px;
+  background:#0d0d22;
+}
+#log-section-label {
+  font-size:0.7rem; color:#555; padding:0 2px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+#log-moves {
+  overflow-y: auto;
+  max-height: 430px;
+  display:flex; flex-direction:column; gap:3px;
+}
+.log-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  background: #11112288;
+  border-left: 3px solid transparent;
+}
+.log-item.red-move  { border-color: #c0392b; }
+.log-item.blk-move  { border-color: #4a6f82; }
+.log-item.sys-msg   { border-color: #e6a817; background:#1c150588; color:#f0c060; }
+.log-move-head {
+  display:flex; gap:6px; align-items:baseline;
+  margin-bottom:2px;
+}
+.log-num  { font-size:0.68rem; color:#555; }
+.log-side { font-size:0.72rem; font-weight:bold; }
+.log-side.red { color:#e05050; }
+.log-side.blk { color:#8ab4c8; }
+.log-move-body { color:#bbb; }
+.log-event { display:block; }
+button {
+  padding: 5px 16px;
+  border: none; border-radius: 20px;
+  cursor: pointer; font-size: 0.85rem;
+  font-family: inherit; font-weight: bold;
+  transition: filter 0.15s;
+}
+button:hover { filter: brightness(1.2); }
+#btn-restart { background:#e67e22; color:#fff; }
+#btn-draw    { background:#16a085; color:#fff; }
+#piece-hint {
+  min-height: 1.4em;
+  font-size: 0.78rem;
+  color: #c8a96e;
+  text-align: center;
+  padding: 4px 8px;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+.cap-piece {
+  display:inline-block; width:22px; height:22px;
+  line-height:22px; text-align:center;
+  border-radius:50%; font-size:11px; font-weight:bold;
+}
+.cap-r { background:#fce8c8; color:#c0392b; border:1px solid #8b1a0a; }
+.cap-b { background:#d5d0c0; color:#111; border:1px solid #555; }
+
+/* ── 响应式：窄屏时日志面板移至棋盘下方 ── */
+@media (max-width: 960px) {
+  body { padding: 6px 0; }
+  #game-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+  #cap-col { display: none; }
+  #log-panel {
+    width: 100%;
+    max-width: 640px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #score-header { flex: 1 1 280px; }
+  #log-section-label { width: 100%; }
+  #log-moves { max-height: 180px; width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="game-layout">
+  <!-- 左侧：双方损失 -->
+  <div id="cap-col">
+    <div class="cap-col-label">损失棋子</div>
+    <div class="cap-section-label">黑方</div>
+    <div id="cap-black-list" class="cap-piece-list"></div>
+    <div class="cap-section-label">红方</div>
+    <div id="cap-red-list" class="cap-piece-list"></div>
+  </div>
+
+  <!-- 中央：棋盘 + 控制 -->
+  <div id="center-col">
+    <div id="board-wrap">
+      <canvas id="board-canvas"></canvas>
+    </div>
+    <div id="info-bar">
+      <div id="turn-indicator" class="red">红方回合</div>
+      <div id="message"></div>
+    </div>
+    <div id="controls">
+      <button id="btn-restart">重新开始</button>
+      <button id="btn-draw">提和</button>
+    </div>
+    <div id="piece-hint"></div>
+  </div>
+
+  <!-- 日志面板 -->
+  <div id="log-panel">
+    <!-- 评分栏 -->
+    <div id="score-header">
+      <div class="score-row">
+        <span class="wr-pct red" id="red-wr-pct">50%</span>
+        <span class="wr-label red">红</span>
+        <div id="score-track">
+          <div id="score-fill-red" style="width:50%"></div>
+          <div id="score-fill-blk" style="width:50%"></div>
+        </div>
+        <span class="wr-label blk">黑</span>
+        <span class="wr-pct blk" id="blk-wr-pct">50%</span>
+      </div>
+      <div id="score-advantage">均势</div>
+      <!-- 胜率折线图 -->
+      <canvas id="winrate-canvas" width="220" height="72"></canvas>
+    </div>
+    <!-- 历史记录 -->
+    <div id="log-section-label">
+      <span>历史记录</span>
+      <span id="log-move-count" style="color:#444">0 步</span>
+    </div>
+    <div id="log-moves"></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  URL 参数读取（嵌入 iframe 时由父页面传入）
+// ─────────────────────────────────────────────
+const _urlParams = new URLSearchParams(location.search);
+const _LEVEL_ID  = parseInt(_urlParams.get('levelId')) || 0;
+const _AI_ON     = _urlParams.get('ai') === '1';
+const _AI_TIME   = parseInt(_urlParams.get('aiTime')) || 500;
+// 模式：classic（传统）/ mixed（混合：部分棋子升级）/ kw（科王：全升级）
+const _MODE      = _urlParams.get('mode')
+  || (_urlParams.get('classic') === '1' ? 'classic' : 'kw');
+const _CLASSIC   = _MODE === 'classic';
+const _MIXED     = _MODE === 'mixed';
+const _KW        = _MODE === 'kw';
+// 升级配置：pu / au 是逗号分隔的棋子键名（rook,cannon,horse,bishop,advisor,pawn,king）
+const TYPE_TO_KEY = { K:'king', R:'rook', C:'cannon', H:'horse', B:'bishop', A:'advisor', P:'pawn' };
+function _parseUpgrades(name) {
+  const v = _urlParams.get(name);
+  if (!v) return {};
+  const obj = {};
+  v.split(',').forEach(k => { const t = k.trim(); if (t) obj[t] = true; });
+  return obj;
+}
+const _PLAYER_UPGRADES = _parseUpgrades('pu'); // RED 方升级棋子
+const _AI_UPGRADES     = _parseUpgrades('au'); // BLACK 方升级棋子
+
+// ─────────────────────────────────────────────
+//  游戏统计（用于关卡星星判定，via postMessage）
+// ─────────────────────────────────────────────
+const gameStats = {
+  typesMoved:    [],   // 红方移动过的棋子 TYPE 集合
+  typesCaptured: [],   // 红方发起吃子所用的棋子 TYPE 集合（判断"用4种棋子吃子"）
+  redKillsByType: { K:0, R:0, C:0, H:0, B:0, A:0, P:0 },
+  totalMoves: 0,       // 总步数
+  kingLeftPalace: false,
+  kingKillsStacked: 0,
+  maxChainKills: 0,
+  pawnExplodeKills: 0,
+  rookTransportedStackedPawn: false,
+  stackedPawnReachedBottom: false,
+  win: false,
+};
+function _addToSet(arr, val) { if (!arr.includes(val)) arr.push(val); }
+let lastRedPct = 50;
+let lastAdvantage = '均势';
+let moveLogSimple = [];
+
+// ─────────────────────────────────────────────
+//  常量
+// ─────────────────────────────────────────────
+//  实验性规则开关（false = 关闭）
+// ─────────────────────────────────────────────
+const RULE_EAT_UNMERGE = false;  // 吃子后取消合体：消灭敌方后需重新花步合体才能整体出击
+
+// ─────────────────────────────────────────────
+const COLS = 9, ROWS = 10;
+const CELL = 64, PAD = 44, R = 27;
+const W = PAD*2 + CELL*(COLS-1);
+const H = PAD*2 + CELL*(ROWS-1);
+
+const TYPE = { KING:'K', ADVISOR:'A', BISHOP:'B', HORSE:'H', ROOK:'R', CANNON:'C', PAWN:'P' };
+const RED = 'red', BLACK = 'black';
+const enemy = o => o === RED ? BLACK : RED;
+
+// ─────────────────────────────────────────────
+//  棋盘数据结构
+//  board[row][col] = { type, owner, layer } | null
+//  layer ≥ 1
+// ─────────────────────────────────────────────
+function emptyBoard() {
+  return Array.from({length: ROWS}, () => Array(COLS).fill(null));
+}
+
+// 判断某种棋子在指定方是否升级
+//  - classic: 全部 false
+//  - kw: 默认 true，除非显式排除（很少用）
+//  - mixed: 仅 upgrades 配置里列出的为 true，其余 false
+function isPieceUpgraded(type, owner) {
+  if (_CLASSIC) return false;
+  const upgrades = owner === RED ? _PLAYER_UPGRADES : _AI_UPGRADES;
+  const key = TYPE_TO_KEY[type];
+  if (key in upgrades) return upgrades[key] === true;
+  // mixed 模式：未列出 = 不升级；kw 模式：未列出 = 升级（容错）
+  return _MIXED ? false : true;
+}
+
+function initBoard() {
+  const b = emptyBoard();
+  const place = (row, col, type, owner) => b[row][col] = {
+    type, owner, layer: 1, groups: [1], upgraded: isPieceUpgraded(type, owner)
+  };
+
+  // 黑方 row 0 底线
+  const backRow = [TYPE.ROOK, TYPE.HORSE, TYPE.BISHOP, TYPE.ADVISOR, TYPE.KING,
+                   TYPE.ADVISOR, TYPE.BISHOP, TYPE.HORSE, TYPE.ROOK];
+  backRow.forEach((t, c) => place(0, c, t, BLACK));
+  place(2, 1, TYPE.CANNON, BLACK); place(2, 7, TYPE.CANNON, BLACK);
+  [0,2,4,6,8].forEach(c => place(3, c, TYPE.PAWN, BLACK));
+
+  // 红方 row 9 底线
+  backRow.forEach((t, c) => place(9, c, t, RED));
+  place(7, 1, TYPE.CANNON, RED); place(7, 7, TYPE.CANNON, RED);
+  [0,2,4,6,8].forEach(c => place(6, c, TYPE.PAWN, RED));
+
+  return b;
+}
+
+// ─────────────────────────────────────────────
+//  工具
+// ─────────────────────────────────────────────
+const inBoard = (c,r) => c>=0 && c<COLS && r>=0 && r<ROWS;
+
+function inPalace(col, row, owner) {
+  const rows = owner === RED ? [7,8,9] : [0,1,2];
+  return col>=3 && col<=5 && rows.includes(row);
+}
+
+// 克隆棋盘（深拷贝）
+function cloneBoard(b) {
+  return b.map(row => row.map(cell => {
+    if (!cell) return null;
+    const c = {...cell};
+    if (c.groups) c.groups = c.groups.slice();
+    return c;
+  }));
+}
+
+// ─────────────────────────────────────────────
+//  层数差战斗结算
+//  atk: 攻击方格 {type,owner,layer}  at: 目标格
+//  返回 { atkResult, defResult }
+//    atkResult: null(被压死) | {layer} (存活)
+//    defResult: null(被全消) | {layer} (存活)
+// ─────────────────────────────────────────────
+function combatResult(atkLayer, defLayer) {
+  if (atkLayer > defLayer) {
+    // 攻强：攻方完整保留所有层数，防方消灭
+    return { atkSurvive: atkLayer, defSurvive: 0 };
+  }
+  if (atkLayer === defLayer) {
+    // 同层：攻方完整保留（不消耗）
+    return { atkSurvive: atkLayer, defSurvive: 0 };
+  }
+  // 攻弱：攻方压死，防方保留差值层数
+  return { atkSurvive: 0, defSurvive: defLayer - atkLayer };
+}
+
+// ─────────────────────────────────────────────
+//  走法生成
+//  返回 Move[]
+//  Move = { col, row, type:'move'|'stack'|'eat'|'charge'|'explode',
+//            chargeTarget?, chargeDir? }
+// ─────────────────────────────────────────────
+
+// 传统象棋：将帅对脸检测（同列，中间无任何棋子）
+function kingsAreFacing(board) {
+  const rk = findKing(board, RED);
+  const bk = findKing(board, BLACK);
+  if (!rk || !bk || rk.col !== bk.col) return false;
+  const minR = Math.min(rk.row, bk.row), maxR = Math.max(rk.row, bk.row);
+  for (let r = minR + 1; r < maxR; r++) { if (board[r][rk.col]) return false; }
+  return true;
+}
+
+// ── 传统象棋走法（classic 模式用，无叠层/冲撞/连踩/地震/光波/爆炸）──
+function generateClassicMoves(board, srcCol, srcRow) {
+  const piece = board[srcRow][srcCol];
+  if (!piece) return [];
+  const { type, owner } = piece;
+  const opp = enemy(owner);
+  const moves = [];
+
+  function tryAdd(c, r) {
+    if (!inBoard(c, r)) return;
+    const t = board[r][c];
+    if (!t) moves.push({ col:c, row:r, kind:'move' });
+    else if (t.owner === opp) moves.push({ col:c, row:r, kind:'eat' });
+  }
+
+  // 车：直线滑动
+  if (type === TYPE.ROOK) {
+    for (const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let c=srcCol+dc, r=srcRow+dr;
+      while (inBoard(c,r)) {
+        const t=board[r][c];
+        if (!t) { moves.push({col:c,row:r,kind:'move'}); c+=dc; r+=dr; }
+        else { if(t.owner===opp) moves.push({col:c,row:r,kind:'eat'}); break; }
+      }
+    }
+  }
+  // 炮：移动同车，吃子需越过且仅越过 1 枚炮架
+  if (type === TYPE.CANNON) {
+    for (const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let c=srcCol+dc, r=srcRow+dr, platform=false;
+      while (inBoard(c,r)) {
+        const t=board[r][c];
+        if (!t) { if(!platform) moves.push({col:c,row:r,kind:'move'}); c+=dc; r+=dr; }
+        else if (!platform) { platform=true; c+=dc; r+=dr; }
+        else { if(t.owner===opp) moves.push({col:c,row:r,kind:'eat'}); break; }
+      }
+    }
+  }
+  // 马：日字形，检查蹩马腿
+  if (type === TYPE.HORSE) {
+    for (const [lc,lr,sc,sr] of [
+      [1,0,1,1],[1,0,1,-1],[-1,0,-1,1],[-1,0,-1,-1],
+      [0,1,1,1],[0,1,-1,1],[0,-1,1,-1],[0,-1,-1,-1],
+    ]) {
+      const mc=srcCol+lc, mr=srcRow+lr;
+      if (!inBoard(mc,mr) || board[mr][mc]) continue; // 蹩马腿
+      tryAdd(mc+sc, mr+sr);
+    }
+  }
+  // 相/象：斜走2格，检查象眼，不能过河
+  if (type === TYPE.BISHOP) {
+    for (const [dc,dr] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const ec=srcCol+dc, er=srcRow+dr;
+      if (!inBoard(ec,er) || board[er][ec]) continue; // 塞象眼
+      const tc=ec+dc, tr=er+dr;
+      if (!inBoard(tc,tr)) continue;
+      if (owner===RED   && tr < 5) continue; // 红方不能过河
+      if (owner===BLACK && tr > 4) continue; // 黑方不能过河
+      tryAdd(tc, tr);
+    }
+  }
+  // 仕/士：斜走1格，限九宫
+  if (type === TYPE.ADVISOR) {
+    for (const [dc,dr] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nc=srcCol+dc, nr=srcRow+dr;
+      if (inPalace(nc,nr,owner)) tryAdd(nc,nr);
+    }
+  }
+  // 帅/将：直走1格，限九宫
+  if (type === TYPE.KING) {
+    for (const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nc=srcCol+dc, nr=srcRow+dr;
+      if (inPalace(nc,nr,owner)) tryAdd(nc,nr);
+    }
+  }
+  // 兵/卒：过河前只能前进，过河后可横走
+  if (type === TYPE.PAWN) {
+    const fwd = owner===RED ? -1 : 1;
+    tryAdd(srcCol, srcRow+fwd);
+    const crossed = owner===RED ? srcRow<=4 : srcRow>=5;
+    if (crossed) { tryAdd(srcCol-1,srcRow); tryAdd(srcCol+1,srcRow); }
+  }
+  return moves;
+}
+
+function generateMoves(board, srcCol, srcRow) {
+  const piece = board[srcRow][srcCol];
+  if (!piece) return [];
+  // 按棋子自身升级状态分发：未升级棋子（含 classic 模式所有棋子、mixed 模式未升级棋子）走传统规则
+  if (piece.upgraded === false) return generateClassicMoves(board, srcCol, srcRow);
+  const { type, owner, layer } = piece;
+  const opp = enemy(owner);
+  const moves = [];
+
+  // 辅助：添加普通落点（移动/叠层/吃子）
+  function addMove(c, r) {
+    if (!inBoard(c, r)) return;
+    const target = board[r][c];
+    if (!target) {
+      moves.push({ col: c, row: r, kind: 'move' });
+    } else if (target.owner === owner && target.type === type && type !== TYPE.KING) {
+      // 同类同阵营 → 叠层（王除外）
+      moves.push({ col: c, row: r, kind: 'stack' });
+    } else if (target.owner === opp) {
+      // 敌方 → 吃（按层数差结算）
+      moves.push({ col: c, row: r, kind: 'eat' });
+    }
+    // 异类己方棋子 → 不能走
+  }
+
+  // ── 车 ──────────────────────────────────────
+  if (type === TYPE.ROOK) {
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let c = srcCol+dc, r = srcRow+dr;
+      while (inBoard(c,r)) {
+        const t = board[r][c];
+        if (!t) {
+          moves.push({ col:c, row:r, kind:'move' });
+        } else if (t.owner === owner && t.type === TYPE.ROOK) {
+          moves.push({ col:c, row:r, kind:'stack' }); break;
+        } else if (t.owner === opp) {
+          moves.push({ col:c, row:r, kind:'eat' }); break;
+        } else {
+          // 己方异类棋子 → 可冲撞，见下；普通移动停止
+          break;
+        }
+        c+=dc; r+=dr;
+      }
+      // Bug7修复：冲撞——找同线所有己方异类棋子（中间至少1空格），允许多个目标
+      {
+        let foundSpace = false;
+        let c2 = srcCol+dc, r2 = srcRow+dr;
+        while (inBoard(c2,r2)) {
+          const t = board[r2][c2];
+          if (!t) {
+            foundSpace = true;
+          } else {
+            if (foundSpace && t.owner === owner && t.type !== TYPE.ROOK) {
+              moves.push({ col:c2, row:r2, kind:'charge', dc, dr });
+            }
+            // 遇到任何棋子都停止（不管是否满足冲撞条件）
+            break;
+          }
+          c2+=dc; r2+=dr;
+        }
+      }
+    }
+  }
+
+  // ── 炮 ──────────────────────────────────────
+  // 连续炮架：任意连续棋子段的任意前缀作为炮架
+  if (type === TYPE.CANNON) {
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      // 先收集沿方向的所有格
+      const line = []; // [{col,row,piece}]
+      let c = srcCol+dc, r = srcRow+dr;
+      while (inBoard(c,r)) {
+        line.push({ col:c, row:r, piece: board[r][c] });
+        c+=dc; r+=dr;
+      }
+
+      // 空格阶段：可直接落（移动或叠同类炮）
+      let i = 0;
+      while (i < line.length && !line[i].piece) {
+        moves.push({ col:line[i].col, row:line[i].row, kind:'move' });
+        i++;
+      }
+      // Bug1修复：空格阶段末尾若有己方同类炮，可叠层（无炮架平移叠子）
+      // 上面循环结束时 i 是第一个有棋子的格，已在下面炮架段处理
+
+      // 从 i 开始是连续棋子段（炮架候选起点）
+      // 炮架前缀长度可以是 1..连续段长度
+      // 越过前缀后，下一个格是落点
+      const contStart = i; // 连续段起点（记录但主要靠i推进）
+      while (i < line.length && line[i].piece) {
+        // 以 contStart..i 作为炮架（前缀到第 i 格）
+        // 越过后找落点：从 i+1 开始
+        let j = i + 1;
+        while (j < line.length) {
+          const tgt = line[j];
+          if (!tgt.piece) {
+            moves.push({ col:tgt.col, row:tgt.row, kind:'move' });
+          } else {
+            // 第一个有棋子的格：敌方可吃，己方同类炮可叠层
+            if (tgt.piece.owner === opp) {
+              moves.push({ col:tgt.col, row:tgt.row, kind:'eat' });
+            } else if (tgt.piece.owner === owner && tgt.piece.type === TYPE.CANNON) {
+              moves.push({ col:tgt.col, row:tgt.row, kind:'stack' });
+            }
+            break;
+          }
+          j++;
+        }
+        i++;
+      }
+      // Bug1修复：炮无炮架时（contStart===i，即前面全是空格），
+      // 若方向上第一个棋子恰好是己方同类炮，允许直接叠层
+      // 注意：此时 i 已推进完连续段，contStart 指向第一个棋子位置
+      // 已在空格阶段后处理：当 i===contStart 时该格棋子在 contStart，
+      // 上方循环会以它作为"炮架段第0格"，j=contStart+1 找后续——
+      // 但我们还需要允许「直接落到 contStart 格（叠层）」本身，
+      // 因为炮无炮架时可以平移落到同类炮叠层。
+      if (contStart < line.length && line[contStart].piece) {
+        const tgt = line[contStart];
+        if (tgt.piece.owner === owner && tgt.piece.type === TYPE.CANNON) {
+          // 无炮架直接平移叠层
+          moves.push({ col:tgt.col, row:tgt.row, kind:'stack' });
+        }
+      }
+    }
+    // 去重
+    const seen = new Set();
+    return moves.filter(m => {
+      const k = `${m.col},${m.row},${m.kind}`;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+  }
+
+  // ── 马 ──────────────────────────────────────
+  // 无马腿。两种跳：走日(±1,±2)/(±2,±1)，直线跳2格(±2,0)/(0,±2)
+  // 连踩：中间落在己方棋子上继续跳
+  if (type === TYPE.HORSE) {
+    const baseJumps = [
+      [1,2],[1,-2],[-1,2],[-1,-2],
+      [2,1],[2,-1],[-2,1],[-2,-1],
+      [2,0],[-2,0],[0,2],[0,-2],
+    ];
+    // BFS 连踩
+    const visited = new Set();
+    const queue = [{ c: srcCol, r: srcRow, depth: 0 }];
+    visited.add(`${srcCol},${srcRow}`);
+    while (queue.length) {
+      const { c, r } = queue.shift();
+      for (const [dc, dr] of baseJumps) {
+        const nc = c+dc, nr = r+dr;
+        if (!inBoard(nc,nr)) continue;
+        const t = board[nr][nc];
+        if (!t) {
+          // 空格：终点
+          moves.push({ col:nc, row:nr, kind:'move' });
+        } else if (t.owner === owner && t.type === TYPE.HORSE) {
+          // 己方马：可叠层（终点），也可连踩继续
+          moves.push({ col:nc, row:nr, kind:'stack' });
+          if (!visited.has(`${nc},${nr}`)) {
+            visited.add(`${nc},${nr}`);
+            queue.push({ c:nc, r:nr });
+          }
+        } else if (t.owner === owner) {
+          // 己方异类：连踩中间踏点，继续跳
+          if (!visited.has(`${nc},${nr}`)) {
+            visited.add(`${nc},${nr}`);
+            queue.push({ c:nc, r:nr });
+          }
+        } else {
+          // 敌方：终点，可吃
+          moves.push({ col:nc, row:nr, kind:'eat' });
+        }
+      }
+    }
+    // 去重 + 过滤自叠（连踩绕回自身位置）
+    const seen = new Set();
+    return moves.filter(m => {
+      if (m.col === srcCol && m.row === srcRow) return false;
+      const k = `${m.col},${m.row},${m.kind}`;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+  }
+
+  // ── 相 ──────────────────────────────────────
+  // 斜跳2格，无象眼，可过河，落地发十字地震波
+  if (type === TYPE.BISHOP) {
+    for (const [dc,dr] of [[2,2],[2,-2],[-2,2],[-2,-2]]) {
+      addMove(srcCol+dc, srcRow+dr);
+    }
+  }
+
+  // ── 士 ──────────────────────────────────────
+  // 斜走1格，可离宫可过河，落地发X形光波
+  if (type === TYPE.ADVISOR) {
+    for (const [dc,dr] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      addMove(srcCol+dc, srcRow+dr);
+    }
+  }
+
+  // ── 王 ──────────────────────────────────────
+  // 九宫内：八方向各1格（不能主动出宫）
+  // 九宫外：四方向各1格
+  if (type === TYPE.KING) {
+    const inPal = inPalace(srcCol, srcRow, owner);
+    const dirs = inPal
+      ? [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+      : [[1,0],[-1,0],[0,1],[0,-1]];
+    for (const [dc,dr] of dirs) {
+      const nc = srcCol+dc, nr = srcRow+dr;
+      if (!inBoard(nc,nr)) continue;
+      // 九宫内王不能主动走出九宫
+      if (inPal && !inPalace(nc, nr, owner)) continue;
+      const t = board[nr][nc];
+      if (!t) {
+        moves.push({ col:nc, row:nr, kind:'move' });
+      } else if (t.owner === opp) {
+        moves.push({ col:nc, row:nr, kind:'eat' });
+      }
+      // 王不能叠层
+    }
+  }
+
+  // ── 兵 ──────────────────────────────────────
+  // 四方向各1格，可叠层（上限5），可自爆
+  if (type === TYPE.PAWN) {
+    for (const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      addMove(srcCol+dc, srcRow+dr);
+    }
+    // 自爆（只要兵存在就可以）
+    moves.push({ col:srcCol, row:srcRow, kind:'explode' });
+  }
+
+  return moves;
+}
+
+// 从顶部开始消耗 damage 层，返回存活的 groups 数组
+function applyGroupDamage(groups, damage) {
+  // 进攻方优先攻击底部（groups[last]），从末尾向前消耗伤害
+  let dmgLeft = damage;
+  const result = new Array(groups.length);
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    if (dmgLeft <= 0) result[i] = g;
+    else if (dmgLeft >= g) dmgLeft -= g; // 该组被全灭，不写入
+    else { result[i] = g - dmgLeft; dmgLeft = 0; }
+  }
+  return result.filter(x => x !== undefined);
+}
+
+// ─────────────────────────────────────────────
+//  执行走法，返回 { newBoard, log[], kingCaptured }
+//  log: 文字描述效果
+// ─────────────────────────────────────────────
+function applyMove(board, srcCol, srcRow, move) {
+  const b = cloneBoard(board);
+  const piece = b[srcRow][srcCol];
+  const { col: dc, row: dr, kind } = move;
+  const log = [];
+  let kingCaptured = null; // null | 'red' | 'black'
+
+  function checkKing(r, c) {
+    const t = b[r][c];
+    if (t && t.type === TYPE.KING) {
+      if (kingCaptured === null) {
+        kingCaptured = t.owner;
+      } else if (kingCaptured !== t.owner && kingCaptured !== 'draw') {
+        kingCaptured = 'draw'; // 双王同时覆灭 → 和棋
+      }
+      log.push(`【${t.owner === RED ? '红' : '黑'}方王被消灭！游戏结束】`);
+    }
+  }
+
+  // ── 通用单格移动 / 吃子 / 叠层 ──
+  // moveLayers: 本次带走的层数（顶组或指定）
+  // movedGroups: 本次带走的 groups 子数组（来自顶组）
+  // movingPiece: 车冲撞时传入的被推棋子（已脱离棋盘）
+  function doMoveOrEat(fromC, fromR, toC, toR, moveLayers, movingPiece, movedGroups) {
+    const srcCell = movingPiece || b[fromR][fromC];
+    const actualLayer = moveLayers !== undefined ? moveLayers : srcCell.layer;
+    const tgt = b[toR][toC];
+
+    if (!tgt || tgt.owner === srcCell.owner) {
+      // 移动或叠层
+      if (tgt && tgt.owner === srcCell.owner && tgt.type === srcCell.type) {
+        const maxLayer = srcCell.type === TYPE.PAWN ? 5 : Infinity;
+        const newLayer = Math.min(tgt.layer + actualLayer, maxLayer);
+        const addedLayer = newLayer - tgt.layer;
+        // 叠层：把移动棋子的组预置到目标棋子组的前面（未合并）
+        if (movedGroups && tgt.groups) {
+          tgt.groups = [...movedGroups, ...tgt.groups];
+          // 若因上限削减，裁掉尾部多余层数
+          let excess = tgt.groups.reduce((s,g)=>s+g,0) - newLayer;
+          while (excess > 0 && tgt.groups.length > 0) {
+            const last = tgt.groups[tgt.groups.length-1];
+            if (last <= excess) { excess -= last; tgt.groups.pop(); }
+            else { tgt.groups[tgt.groups.length-1] -= excess; excess = 0; }
+          }
+        }
+        tgt.layer = newLayer;
+        // 兵叠层后自动合体（不需要额外操作，范围立即生效）
+        if (tgt.type === TYPE.PAWN && tgt.groups) tgt.groups = [tgt.layer];
+        log.push(`${srcCell.type}叠层→${toC},${toR} 共${tgt.layer}层`);
+      } else {
+        const newPiece = { ...srcCell, layer: actualLayer };
+        if (movedGroups) newPiece.groups = movedGroups.slice();
+        b[toR][toC] = newPiece;
+        log.push(`${srcCell.type}移动→${toC},${toR}`);
+      }
+      if (!movingPiece) {
+        // remGs：源格剩余的 groups
+        // 合体棋子拆分（单组，moveLayers < groups[0]）→ 剩余为 [groups[0]-moveLayers]
+        // 未合体棋子移走顶组 → 剩余为 groups.slice(1...)
+        let remGs = null;
+        if (srcCell.groups) {
+          if (srcCell.groups.length === 1 && actualLayer < srcCell.groups[0]) {
+            remGs = [srcCell.groups[0] - actualLayer];
+          } else {
+            remGs = srcCell.groups.slice(movedGroups ? movedGroups.length : 0);
+          }
+        }
+        const remaining = srcCell.layer - actualLayer;
+        if (remaining > 0) {
+          const remPiece = { ...srcCell, layer: remaining };
+          if (remGs && remGs.length > 0) remPiece.groups = remGs;
+          else if (remGs) delete remPiece.groups;
+          b[fromR][fromC] = remPiece;
+        } else {
+          b[fromR][fromC] = null;
+        }
+      }
+    } else {
+      // 吃子（层数差结算）
+      const res = combatResult(actualLayer, tgt.layer);
+      // 只有防方被完全消灭时才检查王死亡
+      if (res.defSurvive === 0) {
+        checkKing(toR, toC);
+      }
+      if (res.atkSurvive > 0) {
+        // 攻方胜：带走 moveLayers 层（含 movedGroups），其余留原格
+        const winPiece = { ...srcCell, layer: res.atkSurvive };
+        if (movedGroups) winPiece.groups = movedGroups.slice();
+        // 成功消灭敌方后取消合体状态（王、兵豁免；受 RULE_EAT_UNMERGE 控制）
+        if (RULE_EAT_UNMERGE && winPiece.type !== TYPE.KING && winPiece.type !== TYPE.PAWN
+            && winPiece.groups && winPiece.groups.length === 1 && winPiece.layer > 1) {
+          winPiece.groups = Array(winPiece.layer).fill(1);
+        }
+        b[toR][toC] = winPiece;
+        log.push(`${srcCell.type}(${actualLayer}层)吃${tgt.type}(${tgt.layer}层)→存${res.atkSurvive}层${RULE_EAT_UNMERGE&&winPiece.groups&&winPiece.groups.length>1?'(解体)':''}`);
+      } else {
+        // 攻方被压死——检查攻方是否为王
+        if (srcCell.type === TYPE.KING) {
+          kingCaptured = srcCell.owner;
+          log.push(`【${srcCell.owner === RED ? '红' : '黑'}方王被消灭！游戏结束】`);
+        }
+        if (res.defSurvive > 0) {
+          // 防方存活：从顶部消耗 actualLayer 伤害
+          const newDefGs = tgt.groups ? applyGroupDamage(tgt.groups, actualLayer) : null;
+          const defPiece = { ...tgt, layer: res.defSurvive };
+          if (newDefGs && newDefGs.length > 0) defPiece.groups = newDefGs;
+          b[toR][toC] = defPiece;
+        } else {
+          b[toR][toC] = null;
+        }
+        log.push(`${srcCell.type}(${actualLayer}层)被压死，敌存${res.defSurvive}层`);
+      }
+      if (!movingPiece) {
+        let remGs = null;
+        if (srcCell.groups) {
+          if (srcCell.groups.length === 1 && actualLayer < srcCell.groups[0]) {
+            remGs = [srcCell.groups[0] - actualLayer];
+          } else {
+            remGs = srcCell.groups.slice(movedGroups ? movedGroups.length : 0);
+          }
+        }
+        const remaining = srcCell.layer - actualLayer;
+        if (remaining > 0) {
+          const remPiece = { ...srcCell, layer: remaining };
+          if (remGs && remGs.length > 0) remPiece.groups = remGs;
+          else if (remGs) delete remPiece.groups;
+          b[fromR][fromC] = remPiece;
+        } else {
+          b[fromR][fromC] = null;
+        }
+      }
+    }
+  }
+
+  // ── 自爆（兵）──
+  if (kind === 'explode') {
+    // 爆炸范围 = 总层数（piece.layer），不管是否合体；合体只影响移动
+    // 爆炸伤害 = 固定1层（防止大面积清屏）
+    function applyExplosionHit(nr, nc) {
+      const t = b[nr][nc];
+      if (!t) return;
+      if (t.layer > 1) {
+        t.layer -= 1;
+        if (t.groups) t.groups = applyGroupDamage(t.groups, 1);
+        log.push(`爆炸1伤${t.type}@${nc},${nr}→剩${t.layer}层`);
+      } else {
+        checkKing(nr, nc);
+        b[nr][nc] = null;
+        log.push(`爆炸消灭${t.type}@${nc},${nr}`);
+      }
+    }
+    function explodeAt(ec, er, radius) {
+      const queue = [{ c:ec, r:er, rad:radius }];
+      // 仅追踪兵格防止循环引爆，非兵格可被多次命中
+      const explodedPawns = new Set();
+      explodedPawns.add(`${ec},${er}`);
+      b[er][ec] = null; // 自爆棋子消失
+      log.push(`兵在${ec},${er}自爆(半径${radius})`);
+
+      while (queue.length) {
+        const { c, r, rad } = queue.shift();
+        for (let dc2 = -rad; dc2 <= rad; dc2++) {
+          for (let dr2 = -rad; dr2 <= rad; dr2++) {
+            if (dc2===0 && dr2===0) continue;
+            const nc = c+dc2, nr = r+dr2;
+            if (!inBoard(nc,nr)) continue;
+            const t = b[nr][nc];
+            if (!t) continue;
+            const key = `${nc},${nr}`;
+            if (t.type === TYPE.PAWN) {
+              // 兵：防止重复引爆（循环链保护），连锁半径=总层数
+              if (explodedPawns.has(key)) continue;
+              explodedPawns.add(key);
+              const chainRad = t.layer; // 总层数（不管合不合体）
+              log.push(`连锁引爆兵@${nc},${nr}(半径${chainRad})`);
+              checkKing(nr, nc);
+              b[nr][nc] = null;
+              queue.push({ c:nc, r:nr, rad:chainRad });
+            } else {
+              // 非兵：每次爆炸都造成1层伤害（多兵覆盖时累计）
+              applyExplosionHit(nr, nc);
+            }
+          }
+        }
+      }
+    }
+    const explodeRadius = piece.layer; // 范围=总层数，不管是否合体
+    explodeAt(srcCol, srcRow, explodeRadius);
+    return { board: b, log, kingCaptured };
+  }
+
+  // ── 车冲撞 ──
+  if (kind === 'charge') {
+    const { dc: chDc, dr: chDr } = move;
+    // 找车停的位置（目标棋子前一格）
+    const targetPiece = b[dr][dc];
+    const stopC = dc - chDc, stopR = dr - chDr;
+
+    // 被推棋子继续沿方向飞出
+    let pushC = dc + chDc, pushR = dr + chDr;
+    let landC = dc, landR = dr; // 默认原地（不应出现）
+    while (inBoard(pushC, pushR)) {
+      const t = b[pushR][pushC];
+      if (!t) {
+        landC = pushC; landR = pushR;
+        pushC += chDc; pushR += chDr;
+      } else if (t.owner === targetPiece.owner) {
+        // 己方同类棋子：直接叠加；异类或王：停在前一格
+        if (t.type === targetPiece.type && t.type !== TYPE.KING) {
+          landC = pushC; landR = pushR;
+        } else {
+          landC = pushC - chDc; landR = pushR - chDr;
+        }
+        break;
+      } else {
+        // 敌方棋子，吃子结算（王被推撞死不触发王增长）
+        landC = pushC; landR = pushR;
+        break;
+      }
+    }
+    if (!inBoard(pushC, pushR)) {
+      // 出界，停在边界
+      landC = pushC - chDc; landR = pushR - chDr;
+    }
+
+    // 执行：车移到停止格，被推棋子移到落地格
+    // 未合体叠层：只推走最底部的一组（groups[last]），其余散组留原格
+    // 已合体/单层：整体推走
+    const isUnmerged = targetPiece.groups && targetPiece.groups.length > 1;
+    let pushed, remainGroups = null, remainLayer = 0;
+    if (isUnmerged) {
+      const bottomGroup = targetPiece.groups[targetPiece.groups.length - 1];
+      pushed = { ...targetPiece, layer: bottomGroup, groups: [bottomGroup] };
+      remainGroups = targetPiece.groups.slice(0, -1);
+      remainLayer = targetPiece.layer - bottomGroup;
+    } else {
+      pushed = { ...targetPiece };
+    }
+    b[dr][dc] = remainLayer > 0
+      ? { ...targetPiece, layer: remainLayer, groups: remainGroups }
+      : null;
+    // 车冲撞也需要拆分：未合体时只有顶部组参与冲撞，其余留原格
+    const rookTopG = piece.groups ? piece.groups[0] : piece.layer;
+    const rookML = move.layers !== undefined ? move.layers : rookTopG;
+    const rookIsSplit = piece.groups ? piece.groups.length > 1 : rookML < piece.layer;
+    if (rookIsSplit) {
+      const remRookGs = piece.groups ? piece.groups.slice(1) : null;
+      const remRookL = remRookGs ? remRookGs.reduce((s, g) => s + g, 0) : (piece.layer - rookML);
+      b[srcRow][srcCol] = remRookL > 0 ? { ...piece, layer: remRookL, groups: remRookGs } : null;
+      b[stopR][stopC] = { ...piece, layer: rookML, groups: [rookML] };
+    } else {
+      b[srcRow][srcCol] = null;
+      b[stopR][stopC] = { ...piece };
+    }
+
+    const remDesc = remainLayer > 0 ? `(余${remainLayer}层留原格)` : '';
+    const landTarget = b[landR][landC];
+    if (!landTarget) {
+      b[landR][landC] = pushed;
+      log.push(`车冲撞→推${pushed.type}(${pushed.layer}层)至${landC},${landR}${remDesc}`);
+    } else if (landTarget.owner === pushed.owner) {
+      // 同类己方棋子：叠层（不自动合体；兵例外，自动合体）
+      const oldTgtLayer = landTarget.layer;
+      const maxLayer = pushed.type === TYPE.PAWN ? 5 : Infinity;
+      const newLayer = Math.min(oldTgtLayer + pushed.layer, maxLayer);
+      if (pushed.groups && landTarget.groups) {
+        landTarget.groups = [...pushed.groups, ...landTarget.groups];
+        let excess = landTarget.groups.reduce((s,g)=>s+g,0) - newLayer;
+        while (excess > 0 && landTarget.groups.length > 0) {
+          const last = landTarget.groups[landTarget.groups.length-1];
+          if (last <= excess) { excess -= last; landTarget.groups.pop(); }
+          else { landTarget.groups[landTarget.groups.length-1] -= excess; excess = 0; }
+        }
+      }
+      landTarget.layer = newLayer;
+      if (landTarget.type === TYPE.PAWN && landTarget.groups) landTarget.groups = [landTarget.layer];
+      log.push(`车冲撞→推${pushed.type}叠入同类(${pushed.layer}+${oldTgtLayer}→${newLayer}层)${remDesc}`);
+    } else {
+      // 撞敌方
+      const res = combatResult(pushed.layer, landTarget.layer);
+      if (res.defSurvive === 0) checkKing(landR, landC);
+      if (res.atkSurvive > 0) {
+        b[landR][landC] = { ...pushed, layer: res.atkSurvive };
+        // 车输送王撞敌吃子：王成长（车是输送工具，王主动出击）
+        if (pushed.type === TYPE.KING) {
+          b[landR][landC].layer += 1;
+          if (b[landR][landC].groups) b[landR][landC].groups = [b[landR][landC].layer];
+          log.push(`王(车撞)吃${landTarget.type}成长→${b[landR][landC].layer}层`);
+        } else {
+          // 被推棋子消灭敌方后取消合体（王、兵豁免；受 RULE_EAT_UNMERGE 控制）
+          const lp = b[landR][landC];
+          if (RULE_EAT_UNMERGE && lp.type !== TYPE.KING && lp.type !== TYPE.PAWN
+              && lp.groups && lp.groups.length === 1 && lp.layer > 1) {
+            lp.groups = Array(lp.layer).fill(1);
+          }
+          log.push(`推${pushed.type}撞敌${landTarget.type}(${pushed.layer}vs${landTarget.layer})→存${res.atkSurvive}层${lp.groups&&lp.groups.length>1?'(解体)':''}`);
+        }
+      } else {
+        if (res.defSurvive > 0) {
+          const newGs = landTarget.groups ? applyGroupDamage(landTarget.groups, pushed.layer) : null;
+          const defPiece = { ...landTarget, layer: res.defSurvive };
+          if (newGs && newGs.length > 0) defPiece.groups = newGs;
+          b[landR][landC] = defPiece;
+        } else {
+          b[landR][landC] = null;
+        }
+        log.push(`推${pushed.type}被压死，敌存${res.defSurvive}层`);
+      }
+    }
+    return { board: b, log, kingCaptured };
+  }
+
+  // 波动伤害：n叠士/相波动每格造成n点伤害（waveScaleByLayer）
+  function applyWaveHit(wr, wc, dmg) {
+    const t = b[wr][wc];
+    if (!t) return;
+    if (t.layer > dmg) {
+      t.layer -= dmg;
+      if (t.groups) t.groups = applyGroupDamage(t.groups, dmg);
+    } else {
+      checkKing(wr, wc);
+      b[wr][wc] = null;
+    }
+  }
+
+  // ── 士落地X形光波 ──
+  function advisorWave(bc, br, srcPiece) {
+    const waveLen = srcPiece.groups ? srcPiece.groups[0] : srcPiece.layer;
+    const dmg = srcPiece.groups ? srcPiece.groups[0] : srcPiece.layer; // 顶组层数造成伤害
+    const opp2 = enemy(srcPiece.owner);
+    for (const [wdc, wdr] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      for (let step = 1; step <= waveLen; step++) {
+        const wc = bc + wdc*step, wr = br + wdr*step;
+        if (!inBoard(wc,wr)) break;
+        const t = b[wr][wc];
+        if (t && t.owner === opp2) {
+          const prev = t.layer;
+          applyWaveHit(wr, wc, dmg);
+          log.push(`士X波${dmg}伤${t.type}@${wc},${wr}(${prev}→${b[wr][wc]?.layer??'消灭'}层)`);
+        }
+      }
+    }
+  }
+
+  // ── 相落地十字地震波 ──
+  function bishopWave(bc, br, srcPiece) {
+    const waveLen = srcPiece.groups ? srcPiece.groups[0] : srcPiece.layer;
+    const dmg = srcPiece.groups ? srcPiece.groups[0] : srcPiece.layer; // 顶组层数造成伤害
+    const opp2 = enemy(srcPiece.owner);
+    for (const [wdc, wdr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      for (let step = 1; step <= waveLen; step++) {
+        const wc = bc + wdc*step, wr = br + wdr*step;
+        if (!inBoard(wc,wr)) break;
+        const t = b[wr][wc];
+        if (t && t.owner === opp2) {
+          const prev = t.layer;
+          applyWaveHit(wr, wc, dmg);
+          log.push(`相十字波${dmg}伤${t.type}@${wc},${wr}(${prev}→${b[wr][wc]?.layer??'消灭'}层)`);
+        }
+      }
+    }
+  }
+
+  // ── 合体 ──
+  if (kind === 'merge') {
+    b[srcRow][srcCol] = { ...piece, groups: [piece.layer] };
+    log.push(`${piece.type}合体→${piece.layer}层`);
+    return { board: b, log, kingCaptured };
+  }
+
+  // ── 普通移动/叠层/吃子 ──
+  // move.layers: 本次带走几层（默认用顶组层数）
+  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
+  const moveLayers = move.layers !== undefined ? move.layers : topGroup;
+  // movedGroups：本次带走的 groups（单组，层数=moveLayers）
+  // 对合体棋子拆分：movedGroups=[moveLayers]；对未合体：movedGroups=[topGroup]==[moveLayers]
+  const movedGroups = piece.groups ? [moveLayers] : null;
+  doMoveOrEat(srcCol, srcRow, dc, dr, moveLayers, undefined, movedGroups);
+
+  // 落地后实际存在的棋子（可能是叠层后的合并结果）
+  const landedPiece = b[dr][dc];
+
+  if (landedPiece && landedPiece.owner === piece.owner) {
+    // Bug2+6修复：士/相光波用落地后的实际 layer（叠层后更大，吃子后可能更小）
+    // 叠层时不触发波；移动/吃子时触发
+    if (piece.type === TYPE.ADVISOR && kind !== 'stack') {
+      advisorWave(dc, dr, landedPiece); // 传落地后的实际 piece
+    }
+    if (piece.type === TYPE.BISHOP && kind !== 'stack') {
+      bishopWave(dc, dr, landedPiece); // 传落地后的实际 piece
+    }
+
+    // Bug3修复：王主动吃子增长
+    // 规则：王成功完整吃掉目标并站在目标点上才增长，固定 +1
+    // combatResult 已正确结算存活层数，增长在结算之后额外 +1
+    if (piece.type === TYPE.KING && kind === 'eat') {
+      landedPiece.layer += 1;
+      if (landedPiece.groups) landedPiece.groups = [landedPiece.layer]; // 同步 groups
+      log.push(`王吃子成长→${landedPiece.layer}层`);
+    }
+  }
+
+  return { board: b, log, kingCaptured };
+}
+
+// ─────────────────────────────────────────────
+//  安全过滤：走完后己方王是否存在且未被攻击
+//  用于高亮提示（将军检测）
+// ─────────────────────────────────────────────
+// 在棋盘上找到指定阵营的王，返回 {col,row,layer} 或 null
+function findKing(board, owner) {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const cell = board[r][c];
+      if (cell?.type === TYPE.KING && cell?.owner === owner)
+        return { col: c, row: r, layer: cell.layer };
+    }
+  return null;
+}
+
+// ─────────────────────────────────────────────
+//  全面评估某棋盘下 owner 方王的危险等级
+//  遍历所有敌方回应（直接吃子 + 士光波 + 相地震波 + 车冲撞 + 兵自爆/连锁），
+//  返回 'safe' | 'hurt' | 'fatal'
+// ─────────────────────────────────────────────
+function assessKingDanger(board, owner) {
+  const king = findKing(board, owner);
+  if (!king) return 'fatal'; // 王已不存在
+
+  const opp = enemy(owner);
+  let danger = 'safe';
+
+  // 收集需要全量模拟的走法（有副作用的棋子）
+  const needSim = [];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.owner !== opp) continue;
+      const ms = generateMoves(board, c, r);
+
+      const pTopGroup = p.groups ? p.groups[0] : p.layer;
+      for (const m of ms) {
+        // ① 直接吃王：用 combatResult 快速判断（不需要模拟）
+        if (m.col === king.col && m.row === king.row && m.kind === 'eat') {
+          const res = combatResult(pTopGroup, king.layer);
+          if (res.defSurvive === 0) return 'fatal'; // 致死
+          danger = 'hurt'; // 非致死伤害
+          continue;
+        }
+        // ② 士/相落地波可能波及王
+        if ((p.type === TYPE.ADVISOR || p.type === TYPE.BISHOP) && m.kind !== 'stack') {
+          needSim.push({ c, r, p, m });
+        }
+        // ③ 车冲撞可能把己方棋子推撞王
+        if (p.type === TYPE.ROOK && m.kind === 'charge') {
+          needSim.push({ c, r, p, m });
+        }
+        // ④ 兵自爆（含连锁）可能炸到王
+        if (p.type === TYPE.PAWN && m.kind === 'explode') {
+          needSim.push({ c, r, p, m });
+        }
+      }
+    }
+  }
+
+  // 对有副作用的走法做全量模拟
+  for (const { c, r, p, m } of needSim) {
+    const pTop = p.groups ? p.groups[0] : p.layer;
+    const sim = applyMove(board, c, r, { ...m, layers: pTop });
+    if (sim.kingCaptured === owner) return 'fatal';
+    const k2 = findKing(sim.board, owner);
+    if (!k2) return 'fatal';
+    if (k2.layer < king.layer) danger = 'hurt';
+  }
+
+  return danger;
+}
+
+// ─────────────────────────────────────────────
+//  预览区域 & 路径计算
+// ─────────────────────────────────────────────
+
+// 士X光波影响格子
+function computeAdvisorWaveZone(col, row, layer) {
+  const cells = [];
+  for (const [dc, dr] of [[1,1],[1,-1],[-1,1],[-1,-1]])
+    for (let s = 1; s <= layer; s++) {
+      const c = col+dc*s, r = row+dr*s;
+      if (inBoard(c,r)) cells.push({col:c,row:r}); else break;
+    }
+  return cells;
+}
+
+// 相十字地震波影响格子
+function computeBishopWaveZone(col, row, layer) {
+  const cells = [];
+  for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]])
+    for (let s = 1; s <= layer; s++) {
+      const c = col+dc*s, r = row+dr*s;
+      if (inBoard(c,r)) cells.push({col:c,row:r}); else break;
+    }
+  return cells;
+}
+
+// 车冲撞后被推棋子经过的路径
+function computeChargePushPath(board, tCol, tRow, dc, dr) {
+  const tp = board[tRow][tCol]; if (!tp) return [];
+  const cells = [];
+  let c = tCol+dc, r = tRow+dr;
+  while (inBoard(c,r)) {
+    const t = board[r][c];
+    if (!t) {
+      cells.push({col:c,row:r});
+      c+=dc; r+=dr;
+    } else if (t.owner === tp.owner) {
+      break; // 停在己方棋子前
+    } else {
+      cells.push({col:c,row:r}); // 撞敌方
+      break;
+    }
+  }
+  return cells;
+}
+
+// 兵自爆全部影响范围（含连锁）
+function computeExplosionZone(board, col, row, layer) {
+  const b = cloneBoard(board);
+  const all = new Set();
+  const exploded = new Set([`${col},${row}`]);
+  const queue = [{c:col,r:row,rad:layer}];
+  while (queue.length) {
+    const {c,r,rad} = queue.shift();
+    for (let dc=-rad;dc<=rad;dc++) for (let dr=-rad;dr<=rad;dr++) {
+      if (!dc&&!dr) continue;
+      const nc=c+dc,nr=r+dr;
+      if (!inBoard(nc,nr)) continue;
+      all.add(`${nc},${nr}`);
+      const key=`${nc},${nr}`;
+      if (!exploded.has(key) && b[nr][nc]?.type===TYPE.PAWN) {
+        exploded.add(key);
+        const cp = b[nr][nc];
+        queue.push({c:nc,r:nr,rad: cp.layer}); // 连锁半径=总层数
+        b[nr][nc]=null;
+      }
+    }
+  }
+  return [...all].map(s=>{const [c,r]=s.split(',').map(Number);return{col:c,row:r};});
+}
+
+// 兵自爆连锁波次（返回数组，每个元素是一波的受影响格子）
+function computeExplosionWaves(board, col, row, layer) {
+  const b = cloneBoard(board);
+  const waves = [];
+  let cur = [{c:col,r:row,rad:layer}];
+  const exploded = new Set([`${col},${row}`]);
+  b[row][col] = null;
+  while (cur.length) {
+    const cells = [], next = [];
+    for (const {c,r,rad} of cur)
+      for (let dc=-rad;dc<=rad;dc++) for (let dr=-rad;dr<=rad;dr++) {
+        if (!dc&&!dr) continue;
+        const nc=c+dc,nr=r+dr;
+        if (!inBoard(nc,nr)) continue;
+        cells.push({col:nc,row:nr});
+        const key=`${nc},${nr}`;
+        if (!exploded.has(key) && b[nr][nc]?.type===TYPE.PAWN) {
+          exploded.add(key);
+          const cp2 = b[nr][nc];
+          next.push({c:nc,r:nr,rad: cp2.layer}); // 连锁半径=总层数
+          b[nr][nc]=null;
+        }
+      }
+    waves.push(cells);
+    cur = next;
+  }
+  return waves;
+}
+
+// 寻找马从起点到终点的一条路径（BFS回溯）
+function findHorsePath(board, sc, sr, dc, dr) {
+  const jumps=[[1,2],[1,-2],[-1,2],[-1,-2],[2,1],[2,-1],[-2,1],[-2,-1],[2,0],[-2,0],[0,2],[0,-2]];
+  const owner=board[sr][sc]?.owner;
+  if (!owner) return [{col:sc,row:sr},{col:dc,row:dr}];
+  const vis=new Map(); vis.set(`${sc},${sr}`,null);
+  const q=[{c:sc,r:sr}];
+  while (q.length) {
+    const {c,r}=q.shift();
+    for (const [jc,jr] of jumps) {
+      const nc=c+jc,nr=r+jr;
+      if (!inBoard(nc,nr)) continue;
+      const nk=`${nc},${nr}`;
+      if (vis.has(nk)) continue;
+      vis.set(nk,`${c},${r}`);
+      if (nc===dc&&nr===dr) {
+        const path=[];let k=nk;
+        while(k){const[a,b]=k.split(',').map(Number);path.unshift({col:a,row:b});k=vis.get(k);}
+        return path;
+      }
+      const t=board[nr][nc];
+      if (t&&t.owner===owner) q.push({c:nc,r:nr});
+    }
+  }
+  return [{col:sc,row:sr},{col:dc,row:dr}];
+}
+
+// ─────────────────────────────────────────────
+//  游戏状态
+// ─────────────────────────────────────────────
+const game = {
+  board: initBoard(),
+  turn: RED,
+  // 阶段：'select'选棋子 | 'pickLayer'选层数 | 'pickTarget'选目标
+  phase: 'select',
+  selected: null,       // {col,row}
+  chosenLayers: null,   // 已确认的带走层数（confirmLayer 后有值）
+  hoverIdx: null,       // 鼠标悬停的扇区下标（0-based，仅 pickLayer 阶段使用）
+  specialMode: false,   // true=双击进入，显示拆分/自爆环
+  legalMoves: [],       // 按当前 chosenLayers 过滤的合法走点
+  history: [],
+  gameOver: false,
+  winner: null,
+  isDraw: false,
+  kingDanger: 'safe',  // 'safe' | 'hurt' | 'fatal'
+  hoveredMoveIdx: null, // pickTarget阶段悬停的走法下标
+  lastMove: null,       // {fromCol,fromRow,toCol,toRow} 上一步标记
+  captured: [],         // [{owner,type}] 已损失棋子
+};
+
+// ─────────────────────────────────────────────
+//  动画系统
+// ─────────────────────────────────────────────
+const anim = {
+  playing: false,
+  overlays: [],       // [{col,row}] 红框覆盖
+  slide: null,        // {piece,x,y} 滑动中的棋子
+  srcHide: null,      // {col,row} 滑动时隐藏原位棋子
+  pathLines: [],      // [{fromCol,fromRow,toCol,toRow}] 马路径
+  glow: null,         // {col,row,color,alpha,radius} 光环
+  palaceGlow: null,   // {owner,alpha} 九宫出宫
+};
+
+const _wait = ms => new Promise(r => setTimeout(r, ms));
+
+function animSlide(piece, fc, fr, tc, tr, dur = 250) {
+  return new Promise(resolve => {
+    const sx=cx(fc),sy=cy(fr),ex=cx(tc),ey=cy(tr),t0=performance.now();
+    anim.slide={piece,x:sx,y:sy}; anim.srcHide={col:fc,row:fr};
+    (function step(now){
+      const t=Math.min((now-t0)/dur,1),e=t<.5?2*t*t:-1+(4-2*t)*t;
+      anim.slide.x=sx+(ex-sx)*e; anim.slide.y=sy+(ey-sy)*e;
+      render();
+      if(t<1) requestAnimationFrame(step);
+      else { anim.slide=null; anim.srcHide=null; resolve(); }
+    })(t0);
+  });
+}
+
+function showOverlaysTimed(cells, dur = 500) {
+  anim.overlays = cells; render();
+  return _wait(dur).then(() => { anim.overlays=[]; render(); });
+}
+
+function animGlow(col, row, color, dur = 500) {
+  return new Promise(resolve => {
+    const t0=performance.now();
+    anim.glow={col,row,color,alpha:0,radius:R};
+    (function step(now){
+      const t=Math.min((now-t0)/dur,1);
+      anim.glow.alpha=t<.5?t*2:2-t*2;
+      anim.glow.radius=R+12*(t<.5?t*2:2-t*2);
+      render();
+      if(t<1) requestAnimationFrame(step);
+      else { anim.glow=null; resolve(); }
+    })(t0);
+  });
+}
+
+function animPalaceGlow(owner, dur = 600) {
+  return new Promise(resolve => {
+    const t0=performance.now();
+    anim.palaceGlow={owner,alpha:0};
+    (function step(now){
+      const t=Math.min((now-t0)/dur,1);
+      anim.palaceGlow.alpha=t<.5?t*2:2-t*2;
+      render();
+      if(t<1) requestAnimationFrame(step);
+      else { anim.palaceGlow=null; resolve(); }
+    })(t0);
+  });
+}
+
+async function animHorsePath(path) {
+  anim.pathLines=[];
+  for (let i=0;i<path.length-1;i++) {
+    anim.pathLines.push({fromCol:path[i].col,fromRow:path[i].row,
+      toCol:path[i+1].col,toRow:path[i+1].row});
+    render();
+    await _wait(150);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  损失棋子追踪
+// ─────────────────────────────────────────────
+function diffCaptures(oldBoard, newBoard) {
+  const sum = board => {
+    const m = {};
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        const k = `${p.owner}_${p.type}`;
+        m[k] = (m[k] || 0) + p.layer;
+      }
+    return m;
+  };
+  const os = sum(oldBoard), ns = sum(newBoard), lost = [];
+  for (const k in os) {
+    const d = (os[k]||0) - (ns[k]||0);
+    if (d > 0) { const [owner,type] = k.split('_'); for (let i=0;i<d;i++) lost.push({owner,type}); }
+  }
+  return lost;
+}
+
+function updateCapturedDisplay() {
+  const make = (list, cls) => list.map(c =>
+    `<span class="cap-piece ${cls}">${CHARS[c.owner][c.type]}</span>`).join('');
+  document.getElementById('cap-red-list').innerHTML =
+    make(game.captured.filter(c => c.owner === RED), 'cap-r');
+  document.getElementById('cap-black-list').innerHTML =
+    make(game.captured.filter(c => c.owner === BLACK), 'cap-b');
+}
+
+// 计算某棋子按指定层数走时的所有走点，每个走点标记危险等级
+// 返回 Move[] 每个 move 附加 danger: 'safe'|'hurt'|'fatal'
+// includeSpecial=true 时包含自爆（仅双击模式使用）
+function calcLegalMoves(col, row, layers, includeSpecial = false) {
+  const piece = game.board[row][col];
+  const raw = generateMoves(game.board, col, row);
+  return raw.filter(m => {
+    if (m.kind === 'explode') return includeSpecial;
+    return true;
+  }).map(m => {
+    // 自爆预览
+    if (m.kind === 'explode') {
+      return { ...m, danger: 'safe', preview: computeExplosionZone(game.board, col, row, piece.layer) };
+    }
+    const mWithLayers = { ...m, layers };
+    const { board: nb, kingCaptured } = applyMove(game.board, col, row, mWithLayers);
+
+    // 计算预览区域（红框提示）
+    let preview = [];
+    if (piece.type === TYPE.ADVISOR && m.kind !== 'stack') {
+      preview = computeAdvisorWaveZone(m.col, m.row, layers);
+    } else if (piece.type === TYPE.BISHOP && m.kind !== 'stack') {
+      preview = computeBishopWaveZone(m.col, m.row, layers);
+    } else if (piece.type === TYPE.ROOK && m.kind === 'charge') {
+      preview = computeChargePushPath(game.board, m.col, m.row, m.dc, m.dr);
+    }
+
+    // 己方王被消灭（且非和棋） → 自杀走法，过滤
+    if (kingCaptured === game.turn) return null;
+    // 传统模式：将帅对脸 → 违规走法，过滤
+    if (_CLASSIC && kingsAreFacing(nb)) return null;
+    // 和棋或敌方王被消灭 → 显示为安全（允许选择）
+    if (kingCaptured) return { ...m, danger: 'safe', preview };
+
+    const danger = assessKingDanger(nb, game.turn);
+    return { ...m, danger, preview };
+  }).filter(Boolean); // 移除 null（自杀/对脸走法）
+}
+
+// 棋子走法提示文本
+const PIECE_HINTS_CLASSIC = {
+  R: '车：横竖滑动，不可越子',
+  H: '马：日字跳，先直后斜，蹩马腿不可走',
+  C: '炮：移动同车；吃子须跳过恰好一枚棋子（炮架）',
+  B: '象：斜走两格，不过河，象眼有子不可走',
+  A: '仕：斜走一格，限九宫内',
+  K: '帅：直走一格，限九宫，不可与对方将对脸',
+  P: '兵：未过河只能前进；过河后可左右横走',
+};
+const PIECE_HINTS_KEWANG = {
+  R: '觉醒车：可冲撞运载友方棋子，同类可合体',
+  H: '觉醒马：十二方跳，击杀后连踩，无蹩腿限制',
+  C: '觉醒炮：无需炮架即可吃子，同类可合体',
+  B: '觉醒相：落脚点产生地震波，可出宫',
+  A: '觉醒仕：落脚点发射X光波，可出宫',
+  K: '觉醒帅：可出宫移动，可直接吃子',
+  P: '觉醒兵：八方移动，同类合体，可自爆',
+};
+function showPieceHint(pieceType) {
+  const hints = _CLASSIC ? PIECE_HINTS_CLASSIC : PIECE_HINTS_KEWANG;
+  const hint = hints[pieceType] || '';
+  const el = document.getElementById('piece-hint');
+  if (el) el.textContent = hint;
+  if (_LEVEL_ID && window.self !== window.top) {
+    try { window.parent.postMessage({ type: 'piece-selected', pieceType, hint }, '*'); } catch(e) {}
+  }
+}
+function clearPieceHint() {
+  const el = document.getElementById('piece-hint');
+  if (el) el.textContent = '';
+  if (_LEVEL_ID && window.self !== window.top) {
+    try { window.parent.postMessage({ type: 'piece-selected', pieceType: null, hint: '' }, '*'); } catch(e) {}
+  }
+}
+
+// 单击选中棋子：直接以顶组层数进入选目标阶段（不显示自爆）
+function selectPiece(col, row) {
+  const piece = game.board[row][col];
+  if (!piece || piece.owner !== game.turn) return;
+  game.selected = { col, row };
+  game.phase = 'pickTarget';
+  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
+  game.chosenLayers = topGroup;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.hoveredMoveIdx = null;
+  game.legalMoves = calcLegalMoves(col, row, topGroup, false);
+  showPieceHint(piece.type);
+  render();
+}
+
+// 选层完成（点击拆分扇区），进入选目标阶段
+function confirmLayer(layers) {
+  game.chosenLayers = layers;
+  game.hoverIdx = null;
+  game.phase = 'pickTarget';
+  // 自爆已在选层阶段直接执行，pickTarget 只需移动走点
+  game.legalMoves = calcLegalMoves(game.selected.col, game.selected.row, layers, false);
+  render();
+}
+
+// 判断某方是否有任何不导致己方王被吃的走法（用于停局检测）
+function hasAnyLegalMove(board, owner) {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.owner !== owner) continue;
+      const topGroup = p.groups ? p.groups[0] : p.layer;
+      for (const m of generateMoves(board, c, r)) {
+        const { board: nb, kingCaptured: kc } = applyMove(board, c, r, { srcCol: c, srcRow: r, ...m, layers: topGroup });
+        if (kc === owner) continue; // 自杀走法
+        if (_CLASSIC && kingsAreFacing(nb)) continue; // 将帅对脸违规
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function executeMove(move) {
+  // 中断 Pondering（人走棋时 AI 可能还在后台思考）
+  if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
+  if (typeof AI !== 'undefined') AI.abortPonder();
+  aiState.pondering = false;
+
+  game.history.push({ board: cloneBoard(game.board), turn: game.turn, captured: [...game.captured], lastMove: game.lastMove });
+
+  anim.playing = true;
+  const srcCol = game.selected.col, srcRow = game.selected.row;
+  const piece = { ...game.board[srcRow][srcCol] };
+  const oldBoard = cloneBoard(game.board); // 动画前快照，用于 diffCaptures
+  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
+  const moveLayers = move.layers !== undefined ? move.layers : topGroup;
+  const isSplit = piece.groups ? piece.groups.length > 1 : moveLayers < piece.layer;
+  const isStack = move.kind === 'stack';
+
+  // 计算最终棋盘（先算好，动画只负责过渡展示）
+  const { board: newBoard, log, kingCaptured } = applyMove(
+    game.board, srcCol, srcRow, move
+  );
+
+  // 清除选择UI
+  game.phase = 'select';
+  game.selected = null;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  clearPieceHint();
+
+  try {
+    // ── 合体动画（直接闪光）──
+    if (move.kind === 'merge') {
+      game.board = newBoard; render();
+      await animGlow(srcCol, srcRow, '#27ae60', 400);
+    }
+    // ── 兵自爆动画 ──
+    else if (move.kind === 'explode') {
+      const waves = computeExplosionWaves(game.board, srcCol, srcRow, piece.layer); // 范围=总层数
+      for (const cells of waves) {
+        anim.overlays = cells; render();
+        await _wait(400);
+      }
+      anim.overlays = [];
+      game.board = newBoard; render();
+      await _wait(100);
+    }
+    // ── 车冲撞动画 ──
+    else if (move.kind === 'charge') {
+      const stopCol = move.col - move.dc, stopRow = move.row - move.dr;
+      const targetPiece = { ...game.board[move.row][move.col] };
+      const slidePiece = { ...piece, layer: moveLayers };
+      // 车滑动到停止位
+      game.board[srcRow][srcCol] = isSplit
+        ? (() => {
+            const remGs = piece.groups ? piece.groups.slice(1) : null;
+            const remL = remGs ? remGs.reduce((s,g)=>s+g,0) : (piece.layer - moveLayers);
+            return remL > 0 ? { ...piece, layer: remL, groups: remGs || undefined } : null;
+          })()
+        : null;
+      await animSlide(slidePiece, srcCol, srcRow, stopCol, stopRow, 250);
+      game.board[stopRow][stopCol] = slidePiece;
+      render();
+      // 推送路径红框
+      const pushPath = computeChargePushPath(game.board, move.col, move.row, move.dc, move.dr);
+      if (pushPath.length) {
+        anim.overlays = pushPath; render();
+        await _wait(300);
+        anim.overlays = [];
+      }
+      // 被推棋子滑动
+      const landCell = pushPath.length > 0 ? pushPath[pushPath.length - 1] : { col: move.col, row: move.row };
+      game.board[move.row][move.col] = null;
+      await animSlide(targetPiece, move.col, move.row, landCell.col, landCell.row, 200);
+      game.board = newBoard; render();
+      // 车冲撞推王出九宫检测
+      if (targetPiece.type === TYPE.KING) {
+        const ko = targetPiece.owner;
+        if (inPalace(move.col, move.row, ko)) {
+          const nk = findKing(newBoard, ko);
+          if (nk && !inPalace(nk.col, nk.row, ko)) {
+            await animPalaceGlow(ko, 600);
+          }
+        }
+      }
+    }
+    // ── 马动画（连踩路径 + 逐跳滑动）──
+    else if (piece.type === TYPE.HORSE && move.kind !== 'stack') {
+      const path = findHorsePath(game.board, srcCol, srcRow, move.col, move.row);
+      if (path.length > 2) {
+        await animHorsePath(path);
+      }
+      const slidePiece = { ...piece, layer: moveLayers };
+      game.board[srcRow][srcCol] = isSplit
+        ? (() => {
+            const remGs = piece.groups ? piece.groups.slice(1) : null;
+            const remL = remGs ? remGs.reduce((s,g)=>s+g,0) : (piece.layer - moveLayers);
+            return remL > 0 ? { ...piece, layer: remL, groups: remGs || undefined } : null;
+          })()
+        : null;
+      for (let i = 0; i < path.length - 1; i++) {
+        await animSlide(slidePiece, path[i].col, path[i].row, path[i+1].col, path[i+1].row, 120);
+      }
+      anim.pathLines = [];
+      game.board = newBoard; render();
+    }
+    // ── 士/相动画（滑动 + 波范围闪烁）──
+    else if ((piece.type === TYPE.ADVISOR || piece.type === TYPE.BISHOP) && move.kind !== 'stack') {
+      const slidePiece = { ...piece, layer: moveLayers };
+      game.board[srcRow][srcCol] = isSplit
+        ? (() => {
+            const remGs = piece.groups ? piece.groups.slice(1) : null;
+            const remL = remGs ? remGs.reduce((s,g)=>s+g,0) : (piece.layer - moveLayers);
+            return remL > 0 ? { ...piece, layer: remL, groups: remGs || undefined } : null;
+          })()
+        : null;
+      await animSlide(slidePiece, srcCol, srcRow, move.col, move.row, 250);
+      // 落地后显示波范围红框
+      const waveZone = piece.type === TYPE.ADVISOR
+        ? computeAdvisorWaveZone(move.col, move.row, moveLayers)
+        : computeBishopWaveZone(move.col, move.row, moveLayers);
+      if (waveZone.length) {
+        game.board[move.row][move.col] = slidePiece;
+        anim.overlays = waveZone; render();
+        await _wait(400);
+        anim.overlays = [];
+      }
+      game.board = newBoard; render();
+    }
+    // ── 普通移动/吃子/叠层动画 ──
+    else {
+      const slidePiece = { ...piece, layer: moveLayers };
+      game.board[srcRow][srcCol] = isSplit
+        ? (() => {
+            const remGs = piece.groups ? piece.groups.slice(1) : null;
+            const remL = remGs ? remGs.reduce((s,g)=>s+g,0) : (piece.layer - moveLayers);
+            return remL > 0 ? { ...piece, layer: remL, groups: remGs || undefined } : null;
+          })()
+        : null;
+      await animSlide(slidePiece, srcCol, srcRow, move.col, move.row, 250);
+      game.board = newBoard; render();
+    }
+
+    // 叠层升级光环（绿色）/ 拆分降级光环（红色）
+    if (isStack) {
+      await animGlow(move.col, move.row, '#27ae60', 400);
+    } else if (isSplit) {
+      await animGlow(srcCol, srcRow, '#e74c3c', 400);
+    }
+
+  } finally {
+    // 确保动画状态被清理
+    anim.playing = false;
+    anim.overlays = [];
+    anim.slide = null;
+    anim.srcHide = null;
+    anim.pathLines = [];
+    anim.glow = null;
+    anim.palaceGlow = null;
+  }
+
+  // 追踪损失棋子（用动画前的快照比较，因为动画过程中 game.board 已被修改）
+  const newCaps = diffCaptures(oldBoard, newBoard);
+  game.captured.push(...newCaps);
+
+  // ── 关卡统计追踪（红方走棋时） ──
+  if (piece.owner === RED) {
+    gameStats.totalMoves++;
+    _addToSet(gameStats.typesMoved, piece.type);
+    const enemyKilled = newCaps.filter(c => c.owner === BLACK);
+    if (enemyKilled.length > 0) {
+      _addToSet(gameStats.typesCaptured, piece.type); // 记录发起吃子的红方棋型
+      gameStats.redKillsByType[piece.type] = (gameStats.redKillsByType[piece.type] || 0) + enemyKilled.length;
+      // 连踩链：马一次走棋击杀多个
+      if (piece.type === TYPE.HORSE) {
+        gameStats.maxChainKills = Math.max(gameStats.maxChainKills, enemyKilled.length);
+      }
+      // 兵自爆
+      if (move.kind === 'explode') {
+        gameStats.pawnExplodeKills += enemyKilled.length;
+      }
+      // 王击杀叠层（王吃目标格，目标格在 oldBoard 的 layer>1 即为叠层）
+      if (piece.type === TYPE.KING) {
+        const killedTarget = oldBoard[move.row][move.col];
+        if (killedTarget && killedTarget.layer > 1) gameStats.kingKillsStacked++;
+      }
+    }
+    // 王出九宫格
+    if (piece.type === TYPE.KING) {
+      if (!inPalace(move.col, move.row, RED)) gameStats.kingLeftPalace = true;
+    }
+    // 車运输叠兵（charge + 被运的是红兵且 layer>1）
+    if (move.kind === 'charge') {
+      const target = oldBoard[move.row][move.col];
+      if (target && target.owner === RED && target.type === TYPE.PAWN && target.layer > 1) {
+        gameStats.rookTransportedStackedPawn = true;
+      }
+    }
+    // 叠兵到达底线（row 0 = 黑方底线）
+    if (piece.type === TYPE.PAWN && move.row === 0 && piece.layer > 1) {
+      gameStats.stackedPawnReachedBottom = true;
+    }
+  }
+
+  game.board = newBoard;
+  game.lastMove = { fromCol: srcCol, fromRow: srcRow, toCol: move.col, toRow: move.row };
+  game.hoveredMoveIdx = null;
+  addLog(log.join(' | '));
+  if (_LEVEL_ID) moveLogSimple.push({ side: piece.owner, text: log.join(' | ') });
+  // 仅在黑方走完后（完整一回合结束）推入折线图数据点，避免吃子后被立即反吃导致曲线剧烈抖动
+  // enemy(game.turn) = 下一个实际走棋方（game.turn 此时尚未翻转）
+  updateScoreDisplay(game.turn === BLACK, enemy(game.turn));
+
+  game.chosenLayers = null;
+
+  if (kingCaptured) {
+    game.gameOver = true;
+    game.isDraw   = (kingCaptured === 'draw');
+    game.winner   = game.isDraw ? null : enemy(kingCaptured);
+    addLog(game.isDraw ? '【双王同归于尽！和棋】'
+           : `【${game.winner === RED ? '红' : '黑'}方获胜！】`, true);
+    updateUI(); updateCapturedDisplay(); render();
+    _reportGameEnd();
+    return;
+  }
+
+  game.turn = enemy(game.turn);
+
+  // 停局检测：若下一方无任何合法走法，判该方负
+  if (!hasAnyLegalMove(game.board, game.turn)) {
+    game.gameOver = true;
+    game.isDraw   = false;
+    game.winner   = enemy(game.turn);
+    addLog(`【${game.turn === RED ? '红' : '黑'}方无路可走，判负】`, true);
+    updateUI(); updateCapturedDisplay(); render();
+    _reportGameEnd();
+    return;
+  }
+
+  game.kingDanger = assessKingDanger(game.board, game.turn);
+  updateUI(); updateCapturedDisplay(); render();
+
+  // 局内星星进度实时上报
+  if (_LEVEL_ID) {
+    try { window.parent.postMessage({
+      type: 'game-progress',
+      stats: { ...gameStats },
+      redPct: lastRedPct,
+      advantage: lastAdvantage,
+      capturedRed: game.captured.filter(c => c.owner === RED).map(c => CHARS[RED][c.type]),
+      capturedBlack: game.captured.filter(c => c.owner === BLACK).map(c => CHARS[BLACK][c.type]),
+      moves: moveLogSimple.slice(-12),
+    }, '*'); } catch(e) {}
+  }
+
+  // AI 自动走棋
+  if (!game.gameOver && aiState.enabled && game.turn === aiState.side) {
+    setTimeout(triggerAI, 300);
+  }
+}
+
+function undoMove() {
+  if (anim.playing || !game.history.length) return;
+  const prev = game.history.pop();
+  game.board = prev.board;
+  game.turn  = prev.turn;
+  game.phase = 'select';
+  game.selected = null;
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  game.gameOver = false;
+  game.winner = null;
+  game.isDraw = false;
+  game.captured = prev.captured || [];
+  game.lastMove = prev.lastMove || null;
+  game.hoveredMoveIdx = null;
+  game.kingDanger = assessKingDanger(game.board, game.turn);
+  updateUI(); updateCapturedDisplay(); render();
+}
+
+function restartGame() {
+  if (anim.playing) return;
+  game.board = initBoard();
+  game.turn = RED;
+  game.phase = 'select';
+  game.selected = null;
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  game.history = [];
+  game.gameOver = false;
+  game.winner = null;
+  game.isDraw = false;
+  game.kingDanger = 'safe';
+  game.captured = [];
+  game.lastMove = null;
+  game.hoveredMoveIdx = null;
+  // 重置对局统计
+  gameStats.typesMoved    = [];
+  gameStats.typesCaptured = [];
+  gameStats.redKillsByType = { K:0, R:0, C:0, H:0, B:0, A:0, P:0 };
+  gameStats.totalMoves    = 0;
+  gameStats.kingLeftPalace = false;
+  gameStats.kingKillsStacked = 0;
+  gameStats.maxChainKills = 0;
+  gameStats.pawnExplodeKills = 0;
+  gameStats.rookTransportedStackedPawn = false;
+  gameStats.stackedPawnReachedBottom   = false;
+  gameStats.win = false;
+  moveLogSimple = [];
+  logReset();
+  aiState.thinking = false;
+  AI.clearTT();
+  updateUI(); updateCapturedDisplay(); updateAIUI(); render();
+  updateScoreDisplay(false);
+  // 重置局内进度
+  if (_LEVEL_ID) {
+    try { window.parent.postMessage({
+      type: 'game-progress',
+      stats: { ...gameStats },
+      redPct: lastRedPct,
+      advantage: lastAdvantage,
+      capturedRed: [],
+      capturedBlack: [],
+      moves: [],
+    }, '*'); } catch(e) {}
+  }
+}
+
+// ─────────────────────────────────────────────
+//  渲染
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('board-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width  = W;
+canvas.height = H;
+
+// CSS 缩放时将显示坐标转换为 canvas 坐标
+function canvasXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  return { px: (e.clientX - rect.left) * sx, py: (e.clientY - rect.top) * sy };
+}
+
+const cx = col => PAD + col * CELL;
+const cy = row => PAD + row * CELL;
+
+const CHARS = {
+  [RED]:   { K:'帅', A:'仕', B:'相', H:'马', R:'车', C:'炮', P:'兵' },
+  [BLACK]: { K:'将', A:'士', B:'象', H:'馬', R:'車', C:'砲', P:'卒' },
+};
+const FG   = { [RED]:'#c0392b', [BLACK]:'#111' };
+const BG   = { [RED]:'#fce8c8', [BLACK]:'#d5d0c0' };
+const BORD = { [RED]:'#8b1a0a', [BLACK]:'#444' };
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // 棋盘底色
+  ctx.fillStyle = '#c8a96e';
+  ctx.fillRect(0, 0, W, H);
+
+  // 网格
+  ctx.strokeStyle = '#7a5c2e';
+  ctx.lineWidth = 1;
+  for (let c = 0; c < COLS; c++) {
+    if (c === 0 || c === COLS-1) {
+      line(cx(c), cy(0), cx(c), cy(9));
+    } else {
+      line(cx(c), cy(0), cx(c), cy(4));
+      line(cx(c), cy(5), cx(c), cy(9));
+    }
+  }
+  for (let r = 0; r < ROWS; r++) line(cx(0), cy(r), cx(8), cy(r));
+
+  // 河界文字 + 标题
+  ctx.fillStyle = '#7a5c2e';
+  ctx.font = 'bold 15px "Microsoft YaHei",serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('楚  河', cx(1.5), cy(4.5));
+  ctx.fillText('汉  界', cx(6.5), cy(4.5));
+  // 科王象棋标题居中显示在楚河汉界中间
+  ctx.fillStyle = '#6b3a10';
+  ctx.font = 'bold 20px "Microsoft YaHei",serif';
+  ctx.fillText('科  王  象  棋', cx(4), cy(4.5));
+
+  // 九宫斜线
+  palaceLines(3,0,5,2);
+  palaceLines(3,7,5,9);
+
+  // 兵炮标记
+  for (const [c,r] of [
+    [1,2],[7,2],[1,7],[7,7],
+    [0,3],[2,3],[4,3],[6,3],[8,3],
+    [0,6],[2,6],[4,6],[6,6],[8,6],
+  ]) corner(cx(c), cy(r), 5);
+
+  // 棋盘坐标
+  ctx.fillStyle = '#7a5c2e99';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const colLabels = ['一','二','三','四','五','六','七','八','九'];
+  for (let c = 0; c < COLS; c++) {
+    ctx.fillText(colLabels[c], cx(c), cy(9) + 30);   // 下方列号
+    ctx.fillText(String(9-c), cx(c), cy(0) - 30);    // 上方列号（黑方视角）
+  }
+  ctx.textAlign = 'right';
+  for (let r = 0; r < ROWS; r++) {
+    ctx.fillText(String(ROWS-r), cx(0) - 30, cy(r)); // 左侧行号
+  }
+
+  // 最后一步标记
+  if (game.lastMove && !anim.playing) {
+    const { fromCol, fromRow, toCol, toRow } = game.lastMove;
+    for (const [mc, mr] of [[fromCol,fromRow],[toCol,toRow]]) {
+      ctx.fillStyle = '#f39c1233';
+      ctx.fillRect(cx(mc)-CELL/2, cy(mr)-CELL/2, CELL, CELL);
+    }
+  }
+
+  // 走点高亮（三色 + 叠层蓝色区分）
+  for (const m of game.legalMoves) {
+    // 叠层特殊标记（蓝色双环）
+    if (m.kind === 'stack') {
+      ctx.beginPath();
+      ctx.arc(cx(m.col), cy(m.row), R+4, 0, Math.PI*2);
+      ctx.strokeStyle = '#3498db';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx(m.col), cy(m.row), R+8, 0, Math.PI*2);
+      ctx.strokeStyle = '#3498db88';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      continue;
+    }
+
+    const dc = m.danger === 'fatal' ? '#e74c3c'   // 红
+             : m.danger === 'hurt'  ? '#f1c40f'   // 黄
+             : '#27ae60';                          // 绿
+
+    if (m.kind === 'charge') {
+      // 冲撞目标：虚线圆圈 + 危险色
+      ctx.beginPath();
+      ctx.arc(cx(m.col), cy(m.row), R+4, 0, Math.PI*2);
+      ctx.strokeStyle = dc;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5,3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      continue;
+    }
+    const tgt = game.board[m.row][m.col];
+    if (tgt) {
+      // 有棋子：圆圈（吃子 / 叠层）
+      ctx.beginPath();
+      ctx.arc(cx(m.col), cy(m.row), R+4, 0, Math.PI*2);
+      ctx.strokeStyle = dc;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else {
+      // 空格：实心点
+      ctx.beginPath();
+      ctx.arc(cx(m.col), cy(m.row), 9, 0, Math.PI*2);
+      ctx.fillStyle = dc + 'cc';
+      ctx.fill();
+    }
+  }
+
+  // 预览红框（仅悬停走法显示）
+  if (game.hoveredMoveIdx != null && game.legalMoves[game.hoveredMoveIdx]) {
+    const hm = game.legalMoves[game.hoveredMoveIdx];
+    if (hm.preview) {
+      for (const p of hm.preview) {
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(cx(p.col)-CELL/2+2, cy(p.row)-CELL/2+2, CELL-4, CELL-4);
+        ctx.fillStyle = '#e74c3c18';
+        ctx.fillRect(cx(p.col)-CELL/2+2, cy(p.row)-CELL/2+2, CELL-4, CELL-4);
+      }
+    }
+  }
+
+  // 兵自爆预览（pickLayer阶段，棋子为兵时显示爆炸范围）
+  if (game.phase === 'pickLayer' && game.selected) {
+    const sp = game.board[game.selected.row][game.selected.col];
+    if (sp?.type === TYPE.PAWN) {
+      const zone = computeExplosionZone(game.board, game.selected.col, game.selected.row, sp.layer); // 范围=总层数
+      for (const p of zone) {
+        ctx.strokeStyle = '#e74c3c88';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx(p.col)-CELL/2+3, cy(p.row)-CELL/2+3, CELL-6, CELL-6);
+      }
+    }
+  }
+
+  // 王的危险高亮
+  if (game.kingDanger !== 'safe' && !game.gameOver) {
+    const warnColor = game.kingDanger === 'fatal' ? '#e74c3c' : '#f1c40f';
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const p = game.board[r][c];
+        if (p?.type === TYPE.KING && p.owner === game.turn) {
+          ctx.beginPath();
+          ctx.arc(cx(c), cy(r), R+6, 0, Math.PI*2);
+          ctx.strokeStyle = warnColor;
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+      }
+  }
+
+  // 动画红框覆盖（爆炸/波/冲撞动画中）
+  for (const o of anim.overlays) {
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(cx(o.col)-CELL/2+1, cy(o.row)-CELL/2+1, CELL-2, CELL-2);
+    ctx.fillStyle = '#e74c3c22';
+    ctx.fillRect(cx(o.col)-CELL/2+1, cy(o.row)-CELL/2+1, CELL-2, CELL-2);
+  }
+
+  // 棋子（动画时跳过滑动中的源位置）
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (anim.srcHide && anim.srcHide.col === c && anim.srcHide.row === r) continue;
+      const p = game.board[r][c];
+      if (!p) continue;
+      const sel = game.selected?.col === c && game.selected?.row === r;
+      drawPiece(c, r, p, sel);
+    }
+  }
+
+  // 动画：滑动棋子
+  if (anim.slide) drawPieceAt(anim.slide.x, anim.slide.y, anim.slide.piece, false);
+
+  // 动画：马路径线
+  if (anim.pathLines.length) {
+    ctx.save();
+    ctx.strokeStyle = '#27ae60cc';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6,3]);
+    for (const ln of anim.pathLines) {
+      ctx.beginPath();
+      ctx.moveTo(cx(ln.fromCol), cy(ln.fromRow));
+      ctx.lineTo(cx(ln.toCol), cy(ln.toRow));
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // 动画：光环
+  if (anim.glow) {
+    const a = Math.round(anim.glow.alpha*255).toString(16).padStart(2,'0');
+    ctx.beginPath();
+    ctx.arc(cx(anim.glow.col), cy(anim.glow.row), anim.glow.radius, 0, Math.PI*2);
+    ctx.strokeStyle = anim.glow.color + a;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  // 动画：九宫出宫绿框
+  if (anim.palaceGlow) {
+    const a = Math.round(anim.palaceGlow.alpha*255).toString(16).padStart(2,'0');
+    const topRow = anim.palaceGlow.owner === RED ? 7 : 0;
+    ctx.strokeStyle = '#27ae60' + a;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx(3)-CELL/2, cy(topRow)-CELL/2, CELL*3, CELL*3);
+  }
+
+  // 选层/自爆环（仅双击流程显示）
+  // pickLayer：正在选层（高亮 hover 扇区）
+  // pickTarget + specialMode：已选层等待落子（高亮已确认扇区，提示玩家）
+  if (game.selected && (game.phase === 'pickLayer' ||
+      (game.phase === 'pickTarget' && game.specialMode))) {
+    const { col, row } = game.selected;
+    const piece = game.board[row][col];
+    if (piece) {
+      const sectors = getPieceSectors(piece);
+      if (sectors.length > 0) {
+        let highlightIdx = null;
+        if (game.phase === 'pickLayer') {
+          highlightIdx = game.hoverIdx;
+        } else {
+          // pickTarget+specialMode：找已选 chosenLayers 对应的扇区下标
+          highlightIdx = sectors.findIndex(s => s.value === game.chosenLayers);
+          if (highlightIdx < 0) highlightIdx = null;
+        }
+        drawLayerPicker(cx(col), cy(row), sectors, highlightIdx);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  选层/自爆弧形选择器（双击弹出）
+//  扇区设计：
+//    · 普通多层棋子：[拆1, 拆2, …, 拆N-1]          共 N-1 扇区
+//    · 多层兵      ：[拆1, 拆2, …, 拆N-1, 爆]       共 N 扇区
+//    · 1 层兵      ：[爆]                           共 1 扇区
+//    · 1 层非王非兵：无扇区，双击不弹出
+//  "全部 N 层移动"由单击完成，不放入环中
+// ─────────────────────────────────────────────
+const PICK_R_IN  = R + 8;   // = 35，棋子高亮圈(R+6)外侧
+const PICK_R_OUT = R + 36;  // = 63，环宽 28px
+
+// 生成棋子双击环的扇区数组：{ label, value }
+// value = 层数(number) 表示拆分（最多N-1层，第N层=单击），value = 'explode' 表示自爆
+// 双击有意义的情况：叠子（可拆分）或兵（可自爆）
+function getPieceSectors(piece) {
+  const sectors = [];
+  // 合体选项：存在多个组时显示
+  if (piece.groups && piece.groups.length > 1) {
+    sectors.push({ label: '合', value: 'merge' });
+  }
+  // 拆分选项：已合体（单组）且层数 > 1
+  if (piece.layer > 1 && (!piece.groups || piece.groups.length === 1)) {
+    for (let k = 1; k < piece.layer; k++) {
+      sectors.push({ label: `拆${k}`, value: k });
+    }
+  }
+  if (piece.type === TYPE.PAWN) {
+    sectors.push({ label: '爆', value: 'explode' });
+  }
+  return sectors;
+}
+
+// 绘制选层环：sectors 数组，hoveredIdx 为 0-based 高亮扇区下标（null=无）
+function drawLayerPicker(x, y, sectors, hoveredIdx) {
+  const n = sectors.length;
+  if (n === 0) return;
+  const sweep = (Math.PI * 2) / n;
+  const startAngle = -Math.PI / 2;
+
+  for (let i = 0; i < n; i++) {
+    const { label, value } = sectors[i];
+    const isExplode = value === 'explode';
+    const gap = Math.min(0.06, sweep * 0.15);
+    const a0 = startAngle + sweep * i + gap;
+    const a1 = startAngle + sweep * (i + 1) - gap;
+    const aMid = startAngle + sweep * (i + 0.5);
+    const isHovered = hoveredIdx === i;
+
+    // 环形扇区（外弧→内弧逆时针→闭合，圆心透明不遮棋子）
+    ctx.beginPath();
+    ctx.arc(x, y, PICK_R_OUT, a0, a1);
+    ctx.arc(x, y, PICK_R_IN,  a1, a0, true);
+    ctx.closePath();
+
+    const isMerge = value === 'merge';
+    // 自爆=红色，合体=绿色，拆分=蓝色
+    ctx.fillStyle = isExplode
+      ? (isHovered ? '#e74c3cf0' : '#e74c3cb0')
+      : isMerge
+        ? (isHovered ? '#27ae60f0' : '#27ae60b0')
+        : (isHovered ? '#2980b9f0' : '#2980b9b0');
+    ctx.fill();
+    ctx.strokeStyle = '#fffc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 标签（数字或"爆"）
+    const txDist = (PICK_R_IN + PICK_R_OUT) / 2;
+    const tx = x + Math.cos(aMid) * txDist;
+    const ty = y + Math.sin(aMid) * txDist;
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${n <= 4 ? 13 : 11}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, tx, ty);
+  }
+}
+
+// 命中测试：返回 0-based 扇区下标，或 null（未命中环形）
+function hitLayerPicker(px, py, ox, oy, sectorCount) {
+  if (sectorCount === 0) return null;
+  const dx = px - ox, dy = py - oy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < PICK_R_IN || dist > PICK_R_OUT) return null;
+  let angle = Math.atan2(dy, dx) - (-Math.PI / 2);
+  if (angle < 0) angle += Math.PI * 2;
+  const sweep = (Math.PI * 2) / sectorCount;
+  const idx = Math.floor(angle / sweep);
+  return idx < sectorCount ? idx : sectorCount - 1;
+}
+
+function line(x1,y1,x2,y2) {
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+function palaceLines(c1,r1,c2,r2) {
+  ctx.strokeStyle='#7a5c2e'; ctx.lineWidth=1;
+  line(cx(c1),cy(r1),cx(c2),cy(r2));
+  line(cx(c2),cy(r1),cx(c1),cy(r2));
+}
+function corner(x,y,s) {
+  ctx.strokeStyle='#7a5c2e'; ctx.lineWidth=1;
+  for (const [sx,sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+    ctx.beginPath();
+    ctx.moveTo(x+sx*3,y+sy*s); ctx.lineTo(x+sx*s,y+sy*s); ctx.lineTo(x+sx*s,y+sy*3);
+    ctx.stroke();
+  }
+}
+
+// 在任意坐标绘制棋子（动画滑动用）
+function drawPieceAt(x, y, piece, selected) {
+  if (selected) {
+    ctx.beginPath();
+    ctx.arc(x, y, R+6, 0, Math.PI*2);
+    ctx.fillStyle = '#f1c40f55';
+    ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI*2);
+  ctx.fillStyle = BG[piece.owner]; ctx.fill();
+  ctx.strokeStyle = selected ? '#f1c40f' : BORD[piece.owner];
+  ctx.lineWidth = selected ? 3 : 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, R-4, 0, Math.PI*2);
+  ctx.strokeStyle = BORD[piece.owner]; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = FG[piece.owner];
+  ctx.font = 'bold 19px "Microsoft YaHei",serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(CHARS[piece.owner][piece.type], x, y);
+  if (piece.layer > 1) {
+    if (piece.groups && piece.groups.length > 1) {
+      // 未合体：同样的红圆样式，在右侧上下等分点显示各组层数
+      const n = piece.groups.length;
+      const lx = x + R - 8;
+      const baseColor = piece.type === TYPE.KING ? '#8e44ad' : '#e74c3c';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < n; i++) {
+        const ly = y - (R - 8) + i * 2 * (R - 8) / (n - 1);
+        ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI * 2);
+        ctx.fillStyle = baseColor; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
+        ctx.fillText(piece.groups[i], lx, ly);
+      }
+    } else {
+      // 已合体：右下角红圆显示总层数
+      const lx = x+R-8, ly = y+R-8;
+      ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI*2);
+      ctx.fillStyle = piece.type===TYPE.KING ? '#8e44ad' : '#e74c3c'; ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(piece.layer, lx, ly);
+    }
+  }
+}
+
+function drawPiece(col, row, piece, selected) {
+  drawPieceAt(cx(col), cy(row), piece, selected);
+}
+
+// ─────────────────────────────────────────────
+//  UI
+// ─────────────────────────────────────────────
+function updateUI() {
+  const ti = document.getElementById('turn-indicator');
+  const mg = document.getElementById('message');
+  if (game.gameOver) {
+    ti.textContent = '游戏结束';
+    if (game.isDraw) {
+      ti.className = 'draw';
+      mg.textContent = '🤝 和棋！';
+    } else {
+      ti.className = game.winner === RED ? 'red' : 'black';
+      mg.textContent = `🎉 ${game.winner === RED ? '红' : '黑'}方获胜！`;
+    }
+    return;
+  }
+  ti.textContent = `${game.turn === RED ? '红' : '黑'}方回合`;
+  ti.className = game.turn;
+  mg.textContent = game.kingDanger === 'fatal' ? '⚠️ 将军！王面临致命威胁'
+                 : game.kingDanger === 'hurt'  ? '⚠️ 王面临非致命伤害'
+                 : '';
+}
+
+const _TYPE_CN = { K:'王', R:'车', C:'炮', H:'马', B:'象', A:'士', P:'兵' };
+
+// ── 胜率历史 & 日志状态 ──
+const wrHistory = [0.5];   // 每步结束后红方胜率
+let logMoveNum = 0;
+
+function cnText(t) {
+  return t.replace(/\b([KRCHBAP])\b/g, c => _TYPE_CN[c] || c)
+          .replace(/([KRCHBAP])(?=[\(（])/g, c => _TYPE_CN[c] || c)
+          .replace(/→(\d+),(\d+)/g, (_, c, r) => `→${+c+1}列${+r+1}行`)
+          .replace(/至(\d+),(\d+)/g, (_, c, r) => `至${+c+1}列${+r+1}行`);
+}
+
+function addLog(text, isSystem) {
+  if (!text) return;
+  const el = document.getElementById('log-moves');
+  if (!el) return;
+  const display = cnText(text);
+
+  if (isSystem) {
+    const item = document.createElement('div');
+    item.className = 'log-item sys-msg';
+    item.dataset.type = 'sys';
+    item.textContent = display;
+    el.prepend(item);
+    return;
+  }
+
+  logMoveNum++;
+  const side = game.turn;  // 走棋方（move尚未换手）
+  const isRed = side === RED;
+
+  const item = document.createElement('div');
+  item.className = `log-item ${isRed ? 'red-move' : 'blk-move'}`;
+  item.dataset.n = logMoveNum;
+
+  const events = display.split(' | ').map(e => e.trim()).filter(Boolean);
+  const evHtml = events.map(e => `<span class="log-event">${e}</span>`).join('');
+
+  item.innerHTML =
+    `<div class="log-move-head">
+       <span class="log-num">#${logMoveNum}</span>
+       <span class="log-side ${isRed ? 'red' : 'blk'}">${isRed ? '●红方' : '○黑方'}</span>
+     </div>
+     <div class="log-move-body">${evHtml}</div>`;
+
+  el.prepend(item);
+
+  const cntEl = document.getElementById('log-move-count');
+  if (cntEl) cntEl.textContent = logMoveNum + ' 步';
+}
+
+function logUndo() {
+  const el = document.getElementById('log-moves');
+  if (!el) return;
+  // 移除最新一条（prepend 到了顶部，firstChild 就是最新）
+  const first = el.firstElementChild;
+  if (first && first.dataset.n) {
+    el.removeChild(first);
+    logMoveNum--;
+    if (wrHistory.length > 1) wrHistory.pop();
+    const cntEl = document.getElementById('log-move-count');
+    if (cntEl) cntEl.textContent = logMoveNum + ' 步';
+  }
+}
+
+function logReset() {
+  const el = document.getElementById('log-moves');
+  if (el) el.innerHTML = '';
+  wrHistory.length = 0;
+  wrHistory.push(0.5);
+  logMoveNum = 0;
+  const cntEl = document.getElementById('log-move-count');
+  if (cntEl) cntEl.textContent = '0 步';
+}
+
+// ── 胜率计算与图表 ──
+const WR_K = 600;  // sigmoid 缩放系数（越大曲线越平缓）
+function scoreToWR(s) { return 1 / (1 + Math.exp(-s / WR_K)); }
+
+function advantageText(score) {
+  const a = Math.abs(score);
+  const side = score > 0 ? '红方' : '黑方';
+  if (a < 60)   return '均势';
+  if (a < 400)  return side + '微优';
+  if (a < 1500) return side + '优势';
+  if (a < 6000) return side + '大优';
+  return side + '必胜';
+}
+
+function updateScoreDisplay(push, nextMover) {
+  // quickEval 使用静态搜索解算吃子链，避免单步吃子后分数虚高
+  // nextMover = 下一个走棋方；未指定时用 game.turn（undo/重启场景已正确）
+  const mover = (nextMover !== undefined) ? nextMover : game.turn;
+  const rawScore = AI.quickEval(game.board, mover);
+  const wr = scoreToWR(rawScore);
+  if (push !== false) wrHistory.push(wr);
+
+  const redPct = Math.round(wr * 100);
+  const blkPct = 100 - redPct;
+  const redEl = document.getElementById('red-wr-pct');
+  const blkEl = document.getElementById('blk-wr-pct');
+  const fillRed = document.getElementById('score-fill-red');
+  const fillBlk = document.getElementById('score-fill-blk');
+  const advEl  = document.getElementById('score-advantage');
+  if (redEl)  redEl.textContent  = redPct + '%';
+  if (blkEl)  blkEl.textContent  = blkPct + '%';
+  if (fillRed) fillRed.style.width = redPct + '%';
+  if (fillBlk) fillBlk.style.width = blkPct + '%';
+  if (advEl)  advEl.textContent  = advantageText(rawScore);
+
+  drawWinRateChart();
+  lastRedPct = redPct;
+  lastAdvantage = advantageText(rawScore);
+}
+
+function drawWinRateChart() {
+  const canvas = document.getElementById('winrate-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const CW = canvas.width, CH = canvas.height;
+  ctx.clearRect(0, 0, CW, CH);
+
+  // 背景
+  ctx.fillStyle = '#0d0d22';
+  ctx.fillRect(0, 0, CW, CH);
+
+  // 50% 基准线
+  ctx.strokeStyle = '#2a2a4a';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(0, CH/2); ctx.lineTo(CW, CH/2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 红/黑标记
+  ctx.fillStyle = '#c0392b44'; ctx.fillRect(0, 0, CW, CH/2);
+  ctx.fillStyle = '#3d7a9a44'; ctx.fillRect(0, CH/2, CW, CH/2);
+
+  if (wrHistory.length < 2) return;
+
+  const n = wrHistory.length;
+  const stepX = CW / Math.max(n - 1, 1);
+  const px = i => i * stepX;
+  const py = w => CH * (1 - w);
+
+  // 填充区域
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(wrHistory[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(px(i), py(wrHistory[i]));
+  ctx.lineTo(px(n-1), CH/2);
+  ctx.lineTo(px(0), CH/2);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, CH);
+  grad.addColorStop(0,   '#e74c3c66');
+  grad.addColorStop(0.5, '#e74c3c11');
+  ctx.fillStyle = grad; ctx.fill();
+
+  // 折线
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(wrHistory[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(px(i), py(wrHistory[i]));
+  ctx.strokeStyle = '#f0c060';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // 最新点
+  const lx = px(n-1), ly = py(wrHistory[n-1]);
+  ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI*2);
+  ctx.fillStyle = '#f0c060'; ctx.fill();
+}
+
+// ─────────────────────────────────────────────
+//  点击交互
+// ─────────────────────────────────────────────
+// 鼠标移动：悬停检测 + 光标样式
+canvas.addEventListener('mousemove', e => {
+  if (anim.playing) return;
+  const { px, py } = canvasXY(e);
+
+  // 计算鼠标对应的棋盘格
+  const hCol = Math.round((px - PAD) / CELL);
+  const hRow = Math.round((py - PAD) / CELL);
+  const onGrid = inBoard(hCol, hRow) && Math.sqrt((px-cx(hCol))**2+(py-cy(hRow))**2) <= CELL*0.55;
+
+  // pickLayer阶段：扇区悬停
+  if (game.phase === 'pickLayer' && game.selected) {
+    const { col, row } = game.selected;
+    const piece = game.board[row][col];
+    if (piece) {
+      const sectors = getPieceSectors(piece);
+      const hit = hitLayerPicker(px, py, cx(col), cy(row), sectors.length);
+      if (hit !== game.hoverIdx) { game.hoverIdx = hit; render(); }
+      canvas.style.cursor = hit !== null ? 'pointer' : 'default';
+    }
+    return;
+  }
+
+  // pickTarget阶段：走法悬停 + 预览
+  if (game.phase === 'pickTarget' && game.selected) {
+    let newIdx = null;
+    if (onGrid) {
+      const idx = game.legalMoves.findIndex(m => m.col === hCol && m.row === hRow);
+      if (idx >= 0) newIdx = idx;
+    }
+    if (newIdx !== game.hoveredMoveIdx) { game.hoveredMoveIdx = newIdx; render(); }
+    // 光标：走法目标 或 己方棋子（可切选）
+    if (newIdx !== null) { canvas.style.cursor = 'pointer'; return; }
+    if (onGrid) {
+      const p = game.board[hRow][hCol];
+      if (p && p.owner === game.turn) { canvas.style.cursor = 'pointer'; return; }
+    }
+    canvas.style.cursor = 'default';
+    return;
+  }
+
+  // select阶段：己方棋子悬停
+  if (game.phase === 'select') {
+    if (onGrid) {
+      const p = game.board[hRow][hCol];
+      canvas.style.cursor = (p && p.owner === game.turn) ? 'pointer' : 'default';
+    } else {
+      canvas.style.cursor = 'default';
+    }
+  }
+});
+
+canvas.addEventListener('click', e => {
+  if (anim.playing || game.gameOver) return;
+  const { px, py } = canvasXY(e);
+
+  // ── 阶段1：选层/自爆环 ──
+  if (game.phase === 'pickLayer' && game.selected) {
+    const { col, row } = game.selected;
+    const piece = game.board[row][col];
+    if (piece) {
+      const sectors = getPieceSectors(piece);
+      const hit = hitLayerPicker(px, py, cx(col), cy(row), sectors.length);
+      if (hit !== null) {
+        const sector = sectors[hit];
+        if (sector.value === 'explode') {
+          // 自爆扇区：直接执行，不进入 pickTarget
+          game.selected = { col, row };
+          executeMove({ col, row, kind: 'explode', layers: piece.layer });
+        } else if (sector.value === 'merge') {
+          // 合体扇区：直接执行合体
+          game.selected = { col, row };
+          executeMove({ col, row, kind: 'merge' });
+        } else {
+          // 拆分扇区：确认层数，进入 pickTarget
+          confirmLayer(sector.value);
+        }
+        return;
+      }
+    }
+    // 点到扇区外：取消选中
+    game.phase = 'select';
+    game.selected = null;
+    game.chosenLayers = null;
+    game.hoverIdx = null;
+    game.specialMode = false;
+    game.legalMoves = [];
+    render();
+    return;
+  }
+
+  // ── 阶段2：选目标 ──
+  if (game.phase === 'pickTarget' && game.selected) {
+    // 普通格点判断
+    const col = Math.round((px - PAD) / CELL);
+    const row = Math.round((py - PAD) / CELL);
+    if (inBoard(col, row)) {
+      const ddx = px - cx(col), ddy = py - cy(row);
+      if (Math.sqrt(ddx*ddx+ddy*ddy) <= CELL*0.55) {
+        const mv = game.legalMoves.find(m => m.col === col && m.row === row);
+        if (mv) {
+          executeMove({ ...mv, layers: game.chosenLayers });
+          return;
+        }
+        // 点到己方棋子 → 重新单击选（退出双击模式）
+        const p = game.board[row][col];
+        if (p && p.owner === game.turn) {
+          selectPiece(col, row);
+          return;
+        }
+      }
+    }
+    // 点到空白 → 取消
+    game.phase = 'select';
+    game.selected = null;
+    game.chosenLayers = null;
+    game.hoverIdx = null;
+    game.specialMode = false;
+    game.legalMoves = [];
+    clearPieceHint();
+    render();
+    return;
+  }
+
+  // ── 阶段0：未选中，选棋子 ──
+  const col = Math.round((px - PAD) / CELL);
+  const row = Math.round((py - PAD) / CELL);
+  if (!inBoard(col, row)) return;
+  const ddx = px - cx(col), ddy = py - cy(row);
+  if (Math.sqrt(ddx*ddx+ddy*ddy) > CELL*0.55) return;
+  const p = game.board[row][col];
+  if (p && p.owner === game.turn) selectPiece(col, row);
+});
+
+// ─────────────────────────────────────────────
+//  双击交互：弹出拆分/自爆环
+//  扇区规则（N = 棋子层数）：
+//    普通多层棋子：[拆1, 拆2, …, 拆N-1]          共 N-1 扇区
+//    多层兵      ：[拆1, 拆2, …, 拆N-1, 爆]       共 N 扇区
+//    1 层兵      ：[爆]                           共 1 扇区
+//    其他 1 层棋子：无扇区，双击无效
+// ─────────────────────────────────────────────
+canvas.addEventListener('dblclick', e => {
+  if (_CLASSIC || anim.playing || game.gameOver) return; // 传统模式无双击特殊操作
+  const { px, py } = canvasXY(e);
+
+  const col = Math.round((px - PAD) / CELL);
+  const row = Math.round((py - PAD) / CELL);
+  if (!inBoard(col, row)) return;
+  const ddx = px - cx(col), ddy = py - cy(row);
+  if (Math.sqrt(ddx*ddx + ddy*ddy) > CELL * 0.55) return;
+
+  const p = game.board[row][col];
+  if (!p || p.owner !== game.turn) return;
+  if (p.type === TYPE.KING) return; // 王无双击特殊操作
+
+  const sectors = getPieceSectors(p);
+  if (sectors.length === 0) return; // 无可弹出操作（1层非兵）
+
+  // 覆盖两次单击事件留下的状态，统一进入 pickLayer 展示环
+  game.selected = { col, row };
+  game.specialMode = true;
+  game.phase = 'pickLayer';
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.legalMoves = [];
+  render();
+});
+
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+
+// 右键取消选中
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (anim.playing || game.phase === 'select') return;
+  game.phase = 'select';
+  game.selected = null;
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  game.hoveredMoveIdx = null;
+  canvas.style.cursor = 'default';
+  render();
+});
+
+// ESC取消选中
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (anim.playing || game.phase === 'select') return;
+  game.phase = 'select';
+  game.selected = null;
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  game.hoveredMoveIdx = null;
+  canvas.style.cursor = 'default';
+  render();
+});
+
+// ─────────────────────────────────────────────
+//  AI 引擎
+// ─────────────────────────────────────────────
+const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, pondering: false, ponderTimer: null };
+
+const AI = (() => {
+  // ── 配置 ──
+  const TT_BITS = 20;
+  const TT_SIZE = 1 << TT_BITS;          // 1048576 条目（4×扩容，提升命中率）
+  const TT_MASK = TT_SIZE - 1;
+  const MAX_PLY = 20;
+  const NULL_R  = 2;                      // 空着裁剪缩减深度
+  const QS_MAX  = 4;                      // 静态搜索最大深度
+
+  // ── 子力价值 ──
+  // 传统象棋：马/炮/士象均为传统价值；科王象棋：马/炮大幅增强，士象也增强
+  // 三套独立的材料价值表（对应训练分别得到的三个 AI）
+  const CLASSIC_VAL = { K:10000, R:900,  C:450,  H:400,  B:200, A:200, P:100 };
+  const KW_VAL      = { K:10000, R:900,  C:780,  H:780,  B:380, A:380, P:100 };
+  // MIXED_VAL：部分觉醒规则下的独立棋子价值表
+  const MIXED_VAL   = { K:10000, R:1115, C:1004, H:1327, B:496, A:423, P:390 };
+  // VAL：保留给"模式级"的全局阈值/边界使用（裁剪、futility margin 等），按当前模式选默认表
+  const VAL = _CLASSIC ? CLASSIC_VAL : (_MIXED ? MIXED_VAL : KW_VAL);
+  // 按棋子升级状态做三路分发：未升级走 CLASSIC_VAL，升级棋子按模式选 MIXED 或 KW
+  function pieceVal(p) {
+    if (p.upgraded === false) return CLASSIC_VAL[p.type];
+    return _MIXED ? MIXED_VAL[p.type] : KW_VAL[p.type];
+  }
+  // 叠层倍率：1叠攻2叠时攻方全灭而守方只削弱，非线性防御价值
+  // 2叠=2.8x, 3叠=4.6x (原0.85系数严重低估叠层战略价値)
+  function layerMul(n) { return n <= 1 ? 1 : 1 + 1.0 * (n - 1); }
+  // 合体棋子非线性战力加成：合体后不仅数值翻倍，还获得战术优势
+  // 2层 → +80, 3层 → +200, 4层 → +360（平方增长，反映合体棋子的碾压能力）
+  function stackCombatBonus(type, layer) {
+    if (layer <= 1) return 0;
+    // 战斗型棋子（车/马/炮）合体后战力提升最大
+    const typeW = (type === TYPE.ROOK || type === TYPE.HORSE || type === TYPE.CANNON) ? 1.0
+                : (type === TYPE.PAWN) ? 0.6 : 0.4;  // 兵适中，仕象较弱
+    return layer * (layer - 1) * 40 * typeW;
+  }
+
+  // ══════════════════════════════════════════════
+  //  ① Zobrist 哈希
+  // ══════════════════════════════════════════════
+  const ZOBRIST = (() => {
+    let s = 1234567890;
+    function r32() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s >>> 0; }
+    const keys = [];
+    for (let r = 0; r < ROWS; r++) {
+      keys[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        keys[r][c] = [];
+        for (let o = 0; o < 2; o++) {
+          keys[r][c][o] = [];
+          for (let t = 0; t < 7; t++) {
+            keys[r][c][o][t] = [];
+            for (let l = 0; l < 8; l++) keys[r][c][o][t][l] = r32();
+          }
+        }
+      }
+    }
+    // 叠层 groups 结构哈希键（topGroup 值，区分合体/未合体状态）
+    const groupKeys = [];
+    for (let r = 0; r < ROWS; r++) {
+      groupKeys[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        groupKeys[r][c] = [];
+        for (let g = 0; g < 8; g++) groupKeys[r][c][g] = r32();
+      }
+    }
+    return { keys, groupKeys, side: r32() };
+  })();
+  const T_IDX = { K:0, R:1, C:2, H:3, B:4, A:5, P:6 };
+  const O_IDX = { [RED]:0, [BLACK]:1 };
+
+  function hashPiece(r, c, p) {
+    let h = ZOBRIST.keys[r][c][O_IDX[p.owner]][T_IDX[p.type]][Math.min(p.layer, 8) - 1];
+    // 未合体时 topGroup ≠ layer，需额外哈希以区分合体/未合体状态
+    if (p.groups && p.groups.length > 1) {
+      h ^= ZOBRIST.groupKeys[r][c][Math.min(p.groups[0], 8) - 1];
+    }
+    return h >>> 0;
+  }
+  function hashBoard(board, turn) {
+    let h = turn === BLACK ? ZOBRIST.side : 0;
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) { const p = board[r][c]; if (p) h ^= hashPiece(r, c, p); }
+    return h >>> 0;
+  }
+
+  // ── 将军检测（AI内部，扫描直接吃王走法 + 传统模式将帅对脸）──
+  function isInCheck(board, owner) {
+    if (_CLASSIC && kingsAreFacing(board)) return true; // 将帅对脸视为被将
+    const king = findKing(board, owner);
+    if (!king) return false;
+    const { col: kc, row: kr } = king;
+    const opp = enemy(owner);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.owner !== opp) continue;
+      for (const m of generateMoves(board, c, r)) {
+        if (m.kind === 'eat' && m.col === kc && m.row === kr) return true;
+      }
+    }
+    return false;
+  }
+
+  // ── SEE-lite：简化静态交换估值 ──
+  // 攻方层数 >= 守方层数 → 无损吃子，返回目标价值（合算）
+  // 攻方层数 < 守方层数  → 攻方死亡，净收益 = atkTop*(defVal - atkVal)
+  //   正值=合算（如兵换车），负值=亏本（如车换兵）
+  function seeLite(src, tgt) {
+    const atkTop = src.groups ? src.groups[0] : src.layer;
+    const defTop = tgt.groups ? tgt.groups[0] : tgt.layer;
+    if (atkTop >= defTop) return pieceVal(tgt) * tgt.layer; // 赢的交换
+    return atkTop * (pieceVal(tgt) - pieceVal(src));         // 可能亏本
+  }
+
+  // ══════════════════════════════════════════════
+  //  ② 置换表
+  // ══════════════════════════════════════════════
+  const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
+  const tt = new Array(TT_SIZE).fill(null);
+
+  function ttProbe(hash, depth, alpha, beta) {
+    const e = tt[hash & TT_MASK];
+    if (!e || e.hash !== hash) return null;
+    if (e.depth >= depth) {
+      if (e.flag === TT_EXACT) return { score: e.score, move: e.move };
+      if (e.flag === TT_LOWER && e.score >= beta)  return { score: e.score, move: e.move };
+      if (e.flag === TT_UPPER && e.score <= alpha) return { score: e.score, move: e.move };
+    }
+    return { move: e.move }; // 深度不够仅返回走法用于排序
+  }
+  function ttStore(hash, depth, score, flag, move) {
+    const i = hash & TT_MASK;
+    if (!tt[i] || tt[i].depth <= depth) tt[i] = { hash, depth, score, flag, move };
+  }
+
+  // ══════════════════════════════════════════════
+  //  ③ 杀手着法（每层2个）
+  // ══════════════════════════════════════════════
+  const killers = Array.from({ length: MAX_PLY }, () => [null, null]);
+
+  function moveEq(a, b) {
+    return a && b && a.srcCol === b.srcCol && a.srcRow === b.srcRow
+      && a.col === b.col && a.row === b.row && a.kind === b.kind && a.layers === b.layers;
+  }
+  function addKiller(ply, m) {
+    if (ply >= MAX_PLY) return;
+    if (m.kind === 'eat') return;
+    if (moveEq(killers[ply][0], m)) return;
+    killers[ply][1] = killers[ply][0];
+    killers[ply][0] = m;
+  }
+  function isKiller(ply, m) {
+    if (ply >= MAX_PLY) return false;
+    return moveEq(killers[ply][0], m) || moveEq(killers[ply][1], m);
+  }
+
+  // ══════════════════════════════════════════════
+  //  ④ 历史启发表
+  // ══════════════════════════════════════════════
+  const historyTab = Array.from({ length: 90 }, () => new Int32Array(90));
+  function hIdx(c, r) { return r * 9 + c; }
+  function addHistory(m, depth) { historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)] += depth * depth; }
+  function getHistory(m) { return historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)]; }
+
+  // ── 反向走法启发（Counter-Move Heuristic）──
+  // counterTab[prevFrom][prevTo] = 上次对手走 prev 后，我方产生 beta-cutoff 的走法
+  const counterTab = Array.from({ length: 90 }, () => new Array(90).fill(null));
+  let prevMove = null; // 上一步对手走法（negamax 搜索路径中）
+  function addCounter(prev, m) {
+    if (!prev || m.kind === 'eat') return;
+    counterTab[hIdx(prev.srcCol, prev.srcRow)][hIdx(prev.col, prev.row)] = m;
+  }
+  function getCounter(prev) {
+    if (!prev) return null;
+    return counterTab[hIdx(prev.srcCol, prev.srcRow)][hIdx(prev.col, prev.row)];
+  }
+
+  // ══════════════════════════════════════════════
+  //  ⑤ 增强评估函数
+  // ══════════════════════════════════════════════
+  function posBonus(type, col, normRow) {
+    const cd = Math.abs(col - 4);
+    switch (type) {
+      case 'P': return normRow * 10 + (normRow >= 5 ? 25 : 0) - cd * 4;
+      case 'R': return 15 - cd * 3 + (normRow >= 2 && normRow <= 8 ? 5 : 0);
+      case 'C': return 12 - cd * 2 + (normRow >= 3 && normRow <= 7 ? 8 : 0);
+      case 'H': return 20 - cd * 5 + (normRow >= 2 && normRow <= 7 ? 10 : 0);
+      case 'A': return 10 - cd * 2 + (normRow >= 3 && normRow <= 7 ? 8 : 0);
+      case 'B': return 10 - cd * 2 + (normRow >= 3 && normRow <= 7 ? 8 : 0);
+      default: return 0;
+    }
+  }
+
+  // 炮线威胁检测：扫描王所在行/列，是否有敌方炮隔子瞄准
+  function cannonLineThreat(board, kingCol, kingRow, oppSide) {
+    let threat = 0;
+    for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let c = kingCol+dc, r = kingRow+dr, platforms = 0;
+      while (inBoard(c,r)) {
+        const p = board[r][c];
+        if (p) {
+          platforms++;
+          if (p.owner === oppSide && p.type === TYPE.CANNON && platforms >= 2) {
+            threat += 200 * p.layer;
+          }
+        }
+        c+=dc; r+=dr;
+      }
+    }
+    return threat;
+  }
+
+  // 王周围可吃目标评估
+  function kingEatTargets(board, kingCol, kingRow, kingLayer, owner) {
+    const opp = enemy(owner);
+    const inPal = inPalace(kingCol, kingRow, owner);
+    const dirs = inPal ? [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+                       : [[1,0],[-1,0],[0,1],[0,-1]];
+    let bonus = 0;
+    for (const [dc,dr] of dirs) {
+      const nc = kingCol+dc, nr = kingRow+dr;
+      if (!inBoard(nc,nr)) continue;
+      if (inPal && !inPalace(nc, nr, owner)) continue;
+      const t = board[nr][nc];
+      if (t && t.owner === opp && kingLayer >= t.layer) {
+        bonus += 60 + pieceVal(t) * 0.05;
+      }
+    }
+    return bonus;
+  }
+
+  function evaluate(board, owner) {
+    const CONTEMPT = 50;
+    let score = CONTEMPT;
+    const opp = enemy(owner);
+    let mkR = -1, mkC = -1, mkL = 1, mkUp = true, okR = -1, okC = -1, okL = 1, okUp = true;
+    let myAttackers = 0, totalPieces = 0;
+    let myMaterial = 0, oppMaterial = 0;
+    // 合体潜力计数：仅统计觉醒（upgraded）棋子，因为合体是觉醒规则
+    const myUpgPcCount = {}, opUpgPcCount = {};
+    for (const t of [TYPE.ROOK, TYPE.CANNON, TYPE.HORSE, TYPE.ADVISOR, TYPE.BISHOP, TYPE.PAWN]) {
+      myUpgPcCount[t] = 0; opUpgPcCount[t] = 0;
+    }
+
+    // 第一遍：子力 + 位置 + 找王
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        totalPieces++;
+        const mine = p.owner === owner, sign = mine ? 1 : -1;
+        const normR = p.owner === RED ? (9 - r) : r;
+        let val;
+        if (p.type === TYPE.KING) {
+          // 王不用 VAL[K]*layerMul — VAL[K]=10000 是终局检测值，若直接乘以 layerMul
+          // 会让 2 层王贡献差值 18000 分，直接触发"必胜"，掩盖所有其他局面因素。
+          // 改用独立评估基值：每层约等于一辆车的价值，体现"难杀+可吃子"的战略价值
+          // 但不会造成分数爆炸。
+          const KING_EVAL_BASE = 900;          // 基础战略价值（约等于 1 辆车弱一点）
+          const KING_LAYER_VAL = 500;          // 每多一层的额外价值（约半辆车）
+          val = KING_EVAL_BASE + posBonus(p.type, c, normR)
+              + (inPalace(c, r, p.owner) ? 30 : -15)
+              + (p.layer - 1) * KING_LAYER_VAL;
+          if (mine) { mkR = r; mkC = c; mkL = p.layer; mkUp = p.upgraded !== false; }
+          else      { okR = r; okC = c; okL = p.layer; okUp = p.upgraded !== false; }
+        } else {
+          val = pieceVal(p) * layerMul(p.layer) + posBonus(p.type, c, normR)
+              + stackCombatBonus(p.type, p.layer);
+          if (p.layer >= 2) val += (p.layer - 1) * 15; // 叠层战术加分
+          // 未合体叠层：topGroup < layer，有战术损失，扣分催促AI尽快合体
+          if (p.groups && p.groups.length > 1) val -= (p.layer - p.groups[0]) * 20;
+          // 过河奖励
+          if (p.type !== TYPE.PAWN && normR >= 5) val += 40;
+          // 重型棋子在中路加分
+          if ((p.type === TYPE.ROOK || p.type === TYPE.CANNON) && c >= 3 && c <= 5) val += 15;
+        }
+        score += sign * val;
+        const pv = pieceVal(p);
+        const isUpg = p.upgraded !== false && p.type !== TYPE.KING;
+        if (mine) { myMaterial += pv; if (isUpg) myUpgPcCount[p.type] = (myUpgPcCount[p.type] || 0) + 1; }
+        else      { oppMaterial += pv; if (isUpg) opUpgPcCount[p.type] = (opUpgPcCount[p.type] || 0) + 1; }
+        if (mine && normR >= 5 && (p.type === TYPE.ROOK || p.type === TYPE.HORSE || p.type === TYPE.CANNON || p.type === TYPE.PAWN)) myAttackers++;
+      }
+
+    // ── 合体潜力：成双觉醒棋子的合体战略潜力 ──
+    // 仅统计 upgraded 棋子（合体是觉醒规则；混合模式下未升级棋子不参与）
+    if (!_CLASSIC) {
+      const PAIR_POT = { [TYPE.HORSE]:65, [TYPE.ROOK]:60, [TYPE.CANNON]:55,
+                         [TYPE.ADVISOR]:40, [TYPE.BISHOP]:40, [TYPE.PAWN]:18 };
+      for (const t of [TYPE.ROOK, TYPE.CANNON, TYPE.HORSE, TYPE.ADVISOR, TYPE.BISHOP, TYPE.PAWN]) {
+        const mc = myUpgPcCount[t] || 0, oc = opUpgPcCount[t] || 0;
+        if (mc >= 2) score += mc * PAIR_POT[t];
+        if (oc >= 2) score -= oc * PAIR_POT[t];
+      }
+    }
+
+    // 渐变阶段：phase=1开局, phase=0残局（连续插值，避免突变）
+    const phase      = Math.max(0, Math.min(1, (totalPieces - 6) / 22));
+    const isEndgame  = phase < 0.25;
+    const isOpening  = phase > 0.75;
+    // 阶段系数：叠层竞速在开局最重要，兵群在中局最强，王成长在残局关键
+    const stackRaceW = 0.4 + phase * 1.1;   // 残局0.4 → 开局1.5
+    const clusterW   = 0.6 - phase * 0.2;   // 残局0.6 → 开局0.4
+    const kingGrowW  = 1.5 - phase * 0.9;   // 残局1.5 → 开局0.6
+    score += myAttackers * (isEndgame ? 40 : 25);
+    if (myMaterial > oppMaterial) score += (myMaterial - oppMaterial) * 0.1;
+
+    // ── 士/相波动威胁 ──
+    // 合体后 topGroup>=2 的士/相，其线路上可触达的敌方棋子代表即时战术威胁
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p || (p.type !== TYPE.ADVISOR && p.type !== TYPE.BISHOP)) continue;
+        const tg = p.groups ? p.groups[0] : p.layer;
+        if (tg < 2) continue;
+        const mine = p.owner === owner, sign = mine ? 1 : -1;
+        const oppSide = p.owner === RED ? BLACK : RED;
+        const dirs = p.type === TYPE.ADVISOR
+          ? [[1,1],[1,-1],[-1,1],[-1,-1]]
+          : [[1,0],[-1,0],[0,1],[0,-1]];
+        let waveThreat = 0;
+        for (const [dc, dr] of dirs) {
+          for (let k = 1; k <= tg; k++) {
+            const wc = c + dc * k, wr = r + dr * k;
+            if (wc < 0 || wc >= COLS || wr < 0 || wr >= ROWS) break;
+            const t = board[wr][wc];
+            if (t && t.owner === oppSide) waveThreat += tg * 12;
+          }
+        }
+        score += sign * waveThreat;
+      }
+    }
+
+    // ── 兵群连锁威胁（专属策略1，位置感知版，仅科王模式）──
+    // 核心逻辑基于觉醒兵自爆连锁，传统模式兵不能爆炸，此块无意义
+    if (!_CLASSIC) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const p = board[r][c];
+          if (!p || p.type !== TYPE.PAWN) continue;
+          if (p.upgraded === false) continue; // 未觉醒兵不会自爆/连锁
+          const sign = p.owner === owner ? 1 : -1;
+          const normR = p.owner === RED ? (9 - r) : r;
+          const posMul = normR >= 7 ? 1.2 : normR >= 5 ? 1.0 : normR >= 3 ? 0.4 : 0.1;
+          const rad = p.layer;
+          let clusterBonus = 0;
+          for (let dr2 = -rad; dr2 <= rad; dr2++) {
+            for (let dc2 = -rad; dc2 <= rad; dc2++) {
+              if (dc2 === 0 && dr2 === 0) continue;
+              const nc = c + dc2, nr2 = r + dr2;
+              if (nc < 0 || nc >= COLS || nr2 < 0 || nr2 >= ROWS) continue;
+              const t = board[nr2][nc];
+              if (!t) continue;
+              if (t.owner === p.owner && t.type === TYPE.PAWN) {
+                clusterBonus += t.layer * 14;
+              } else if (t.owner !== p.owner) {
+                if (t.type === TYPE.PAWN) {
+                  clusterBonus -= t.layer * 10;
+                } else {
+                  clusterBonus += 8;
+                }
+              }
+            }
+          }
+          score += sign * clusterBonus * clusterW * posMul;
+        }
+      }
+    }
+
+    // ── 叠层竞速 + 反合体威胁（开局权重更高，仅科王模式）──
+    if (!_CLASSIC) {
+      for (const side of [owner, opp]) {
+        const sideSign = side === owner ? 1 : -1;
+        for (const t of [TYPE.ROOK, TYPE.CANNON, TYPE.HORSE, TYPE.ADVISOR, TYPE.BISHOP]) {
+          const pts = [];
+          for (let r = 0; r < ROWS; r++)
+            for (let c = 0; c < COLS; c++) {
+              const p = board[r][c];
+              if (p && p.owner === side && p.type === t && p.upgraded !== false) pts.push({ c, r, layer: p.layer });
+            }
+          if (pts.length < 2) continue;
+          for (let i = 0; i < pts.length; i++)
+            for (let j = i + 1; j < pts.length; j++) {
+              const dist = Math.abs(pts[i].c - pts[j].c) + Math.abs(pts[i].r - pts[j].r);
+              if (dist <= 8) score += sideSign * Math.max(0, (9 - dist) * 10.8) * stackRaceW;
+              // ── 反合体紧急威胁：距离1-2时合体即将发生，大幅增加权重 ──
+              // 战斗型棋子（车/马/炮）合体威胁最大
+              if (dist <= 2 && side !== owner) {
+                const typeUrgency = (t === TYPE.ROOK || t === TYPE.HORSE || t === TYPE.CANNON) ? 1.0 : 0.4;
+                const mergedLayer = pts[i].layer + pts[j].layer;
+                // 合体后的战力飞跃：惩罚对手即将获得的战力增量
+                score -= stackCombatBonus(t, mergedLayer) * 0.6 * typeUrgency;
+              }
+            }
+        }
+      }
+    }
+
+    // ── 马覆盖点位（机动性）评分 ──
+    // 未觉醒马：8个日字方向；觉醒马：12方向（额外4个正向跳）
+    {
+      const HORSE_DIRS_CLASSIC = [[1,2],[1,-2],[-1,2],[-1,-2],[2,1],[2,-1],[-2,1],[-2,-1]];
+      const HORSE_DIRS_KEWANG = [[1,2],[1,-2],[-1,2],[-1,-2],[2,1],[2,-1],[-2,1],[-2,-1],[2,0],[-2,0],[0,2],[0,-2]];
+      for (let mhr = 0; mhr < 10; mhr++) for (let mhc = 0; mhc < 9; mhc++) {
+        const p = board[mhr][mhc]; if (!p || p.type !== TYPE.HORSE) continue;
+        const mine = p.owner === owner, sign = mine ? 1 : -1;
+        const tg = p.groups ? p.groups[0] : p.layer;
+        const horseDirs = p.upgraded === false ? HORSE_DIRS_CLASSIC : HORSE_DIRS_KEWANG;
+        let coverage = 0;
+        for (const [dc, dr] of horseDirs) {
+          const nc = mhc + dc, nr = mhr + dr;
+          if (nc < 0 || nc >= 9 || nr < 0 || nr >= 10) continue;
+          const t = board[nr][nc];
+          if (!t || t.owner !== p.owner) coverage++;
+        }
+        score += sign * coverage * 8.92 * (1 + (tg - 1) * 0.3);
+      }
+    }
+
+    // ── 车王对齐冲撞路线（专属策略3）──
+    // 车冲撞王飞出是觉醒车/王的专属组合技：要求己方车觉醒 + 己方王觉醒
+    if (!_CLASSIC && mkR >= 0 && mkUp) {
+      for (let r2 = 0; r2 < ROWS; r2++) for (let c2 = 0; c2 < COLS; c2++) {
+        const p = board[r2][c2];
+        if (!p || p.owner !== owner || p.type !== TYPE.ROOK) continue;
+        if (p.upgraded === false) continue; // 未觉醒车不会冲撞王
+        let pdc = 0, pdr = 0, hasGap = false, clearPath = true;
+        if (r2 === mkR && c2 !== mkC) {
+          pdc = c2 < mkC ? 1 : -1;
+          for (let cc = c2 + pdc; cc !== mkC; cc += pdc) {
+            if (!hasGap) hasGap = true;
+            if (board[mkR][cc]) { clearPath = false; break; }
+          }
+        } else if (c2 === mkC && r2 !== mkR) {
+          pdr = r2 < mkR ? 1 : -1;
+          for (let rr = r2 + pdr; rr !== mkR; rr += pdr) {
+            if (!hasGap) hasGap = true;
+            if (board[rr][mkC]) { clearPath = false; break; }
+          }
+        }
+        if (!hasGap || !clearPath) continue;
+        score += 25;
+        let ec = mkC + pdc, er = mkR + pdr;
+        while (inBoard(ec, er)) {
+          const t = board[er][ec];
+          if (t) {
+            if (t.owner === opp && mkL >= (t.groups ? t.groups[0] : t.layer))
+              score += 120;
+            break;
+          }
+          ec += pdc; er += pdr;
+        }
+      }
+    }
+
+    // 炮线威胁检测
+    if (mkR >= 0) score -= cannonLineThreat(board, mkC, mkR, opp);
+    if (okR >= 0) score += cannonLineThreat(board, okC, okR, owner);
+
+    // 王吃子成长机会（仅觉醒王：传统帅被动防守，不应激励其主动吃子）
+    if (!_CLASSIC) {
+      if (mkR >= 0 && mkUp) score += kingEatTargets(board, mkC, mkR, mkL, owner);
+      if (okR >= 0 && okUp) score -= kingEatTargets(board, okC, okR, okL, opp);
+    }
+
+    // 残局王距离
+    if (isEndgame && mkR >= 0 && okR >= 0) {
+      const kingDist = Math.abs(mkR-okR) + Math.abs(mkC-okC);
+      if (mkL >= okL) score += (14-kingDist) * 15;
+      else score -= (14-kingDist) * 5;
+    }
+    // 王成长加成（残局更关键）
+    if (okL >= 2) score -= okL * 60 * kingGrowW;
+    if (mkL >= 2) score += mkL * 60 * kingGrowW;
+
+    // ── 王安全度（开局/中局权重高，残局衰减）──
+    for (const [kr, kc, kSide, sgn] of [[mkR, mkC, owner, 1], [okR, okC, opp, -1]]) {
+      if (kr < 0) continue;
+      // 近邻友方棋子 = 防御盾（仕/象比普通棋子更重要）
+      let defenders = 0, guardCount = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = kr + dr, nc = kc + dc;
+        if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+        const p = board[nr][nc];
+        if (p && p.owner === kSide) {
+          defenders++;
+          if (p.type === TYPE.ADVISOR || p.type === TYPE.BISHOP) guardCount++;
+        }
+      }
+      // 开放直线暴露（3格内无友方棋子遮挡 → 易被车/炮攻击）
+      let openLines = 0;
+      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        let shielded = false;
+        let nc = kc + dc, nr = kr + dr;
+        for (let step = 0; step < 3; step++) {
+          if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+          const p = board[nr][nc];
+          if (p) { if (p.owner === kSide) shielded = true; break; }
+          nc += dc; nr += dr;
+        }
+        if (!shielded) openLines++;
+      }
+      const kSafety = defenders * 12 - openLines * 18
+                     + guardCount * 25  // 仕/象护王额外加分
+                     + (guardCount === 0 && !isEndgame ? -60 : 0) // 裸王惩罚
+                     + (inPalace(kc, kr, kSide) ? 20 : 0);
+      score += sgn * kSafety * Math.max(phase, 0.3); // 残局也保留30%权重
+    }
+
+    // 王周围敌方棋子威胁（所有合体棋子都计层数加成）
+    if (mkR >= 0) {
+      for (let r = Math.max(0, mkR-3); r <= Math.min(9, mkR+3); r++)
+        for (let c = Math.max(0, mkC-3); c <= Math.min(8, mkC+3); c++) {
+          const p = board[r][c]; if (!p || p.owner !== opp) continue;
+          const d = Math.max(Math.abs(c-mkC), Math.abs(r-mkR));
+          score -= 25 / d;
+          // 合体棋子近王 = 高度危险（层数越高威胁越大）
+          if (p.layer >= 2) score -= p.layer * 22 / d;
+          else if (p.type === TYPE.PAWN) score -= p.layer * 18 / d;
+        }
+    }
+    // 对方王周围己方棋子压制
+    if (okR >= 0) {
+      for (let r = Math.max(0, okR-3); r <= Math.min(9, okR+3); r++)
+        for (let c = Math.max(0, okC-3); c <= Math.min(8, okC+3); c++) {
+          const p = board[r][c]; if (!p || p.owner !== owner) continue;
+          const d = Math.max(Math.abs(c-okC), Math.abs(r-okR));
+          score += 25 / d;
+          if (p.layer >= 2) score += p.layer * 22 / d;
+          else if (p.type === TYPE.PAWN) score += p.layer * 18 / d;
+        }
+    }
+    // ── 车机动性（开放列/半开放列 + 前进位置奖励）──
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.type !== TYPE.ROOK) continue;
+      const sign = p.owner === owner ? 1 : -1;
+      let rb = 0;
+      let myP = false, oppP = false;
+      for (let rr = 0; rr < ROWS; rr++) {
+        const t = board[rr][c];
+        if (t && t.type === TYPE.PAWN) { if (t.owner === p.owner) myP = true; else oppP = true; }
+      }
+      if (!myP && !oppP) rb += 35;  // 完全开放列
+      else if (!myP)     rb += 17;  // 半开放列（无己方兵阻挡）
+      const normRr = p.owner === RED ? (9 - r) : r;
+      if (normRr >= 7) rb += 28;
+      else if (normRr >= 5) rb += 10;
+      score += sign * rb;
+    }
+
+    // ── 悬挂棋子检测（SEE-lite 轻量版，双向对称）──
+    // 对方可吃己方棋子 → 扣分；己方可吃对方棋子 → 加分
+    // 必须双向检测，否则在对称局面（如开局）会产生虚假的先手劣势
+    for (const [attSide, defSide, sgn] of [[opp, owner, -1], [owner, opp, 1]]) {
+      for (const m of genCaptures(board, attSide)) {
+        if (m.kind !== 'eat') continue;
+        const src = board[m.srcRow]?.[m.srcCol];
+        const tgt = board[m.row]?.[m.col];
+        if (!src || !tgt || tgt.owner !== defSide || tgt.type === TYPE.KING) continue;
+        const see = seeLite(src, tgt);
+        if (see > 0) score += sgn * Math.min(see, pieceVal(tgt)) * 0.21;
+      }
+    }
+
+    // ── 残局进攻/守和（增强版）──
+    if (isEndgame && mkR >= 0 && okR >= 0) {
+      const matAdv = myMaterial - oppMaterial;
+      const kingDist = Math.abs(mkR - okR) + Math.abs(mkC - okC);
+      if (matAdv > 200) {
+        // 优势方：强制靠近对方王，压缩逃路
+        const advFactor = Math.min(matAdv / 500, 2.0); // 优势越大越积极
+        score += (14 - kingDist) * 25 * advFactor;
+
+        // ── 敌王活动空间限制（困毙奖励）──
+        let okMoves = 0;
+        for (const [dc2, dr2] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+          const nc = okC + dc2, nr = okR + dr2;
+          if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+          const p = board[nr][nc];
+          if (!p || p.owner === owner) okMoves++; // 空格或可吃的格子
+        }
+        score += (8 - okMoves) * 20 * advFactor; // 逃路越少越好
+
+        // 己方棋子靠近对方王区域的额外奖励
+        for (let r = Math.max(0, okR - 4); r <= Math.min(9, okR + 4); r++)
+          for (let c = Math.max(0, okC - 4); c <= Math.min(8, okC + 4); c++) {
+            const p = board[r][c];
+            if (!p || p.owner !== owner || p.type === TYPE.KING) continue;
+            const d = Math.max(Math.abs(c - okC), Math.abs(r - okR));
+            score += 25 / d * advFactor;
+          }
+      } else if (matAdv < -200) {
+        // 劣势方：王远离，争取和棋
+        const defFactor = Math.min(-matAdv / 500, 2.0);
+        score += kingDist * 10 * defFactor;
+        score += 100;
+      }
+    }
+
+    // ── 车目标感：对准敌王行/列的车获得攻击奖励 ──
+    if (okR >= 0) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p || p.type !== TYPE.ROOK || p.owner !== owner) continue;
+        // 车与敌王同行或同列 → 潜在攻击线
+        if (r === okR || c === okC) {
+          score += 30;
+          // 路径上无障碍 → 直接攻击线
+          let clear = true;
+          if (r === okR) {
+            const minC = Math.min(c, okC), maxC = Math.max(c, okC);
+            for (let cc = minC + 1; cc < maxC; cc++) if (board[r][cc]) { clear = false; break; }
+          } else {
+            const minR = Math.min(r, okR), maxR = Math.max(r, okR);
+            for (let rr = minR + 1; rr < maxR; rr++) if (board[rr][c]) { clear = false; break; }
+          }
+          if (clear) score += 50; // 开放攻击线额外加分
+        }
+      }
+    }
+    if (mkR >= 0) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p || p.type !== TYPE.ROOK || p.owner !== opp) continue;
+        if (r === mkR || c === mkC) {
+          score -= 30;
+          let clear = true;
+          if (r === mkR) {
+            const minC = Math.min(c, mkC), maxC = Math.max(c, mkC);
+            for (let cc = minC + 1; cc < maxC; cc++) if (board[r][cc]) { clear = false; break; }
+          } else {
+            const minR = Math.min(r, mkR), maxR = Math.max(r, mkR);
+            for (let rr = minR + 1; rr < maxR; rr++) if (board[rr][c]) { clear = false; break; }
+          }
+          if (clear) score -= 50;
+        }
+      }
+    }
+
+    return score;
+  }
+
+  // ══════════════════════════════════════════════
+  //  冲撞落地模拟（moveScore 和 evaluate 共用）
+  // ══════════════════════════════════════════════
+  function simChargeLanding(board, tCol, tRow, dc, dr) {
+    const pushed = board[tRow][tCol];
+    if (!pushed) return null;
+    let pushC = tCol + dc, pushR = tRow + dr;
+    let landC = tCol, landR = tRow;
+    while (inBoard(pushC, pushR)) {
+      const t = board[pushR][pushC];
+      if (!t) {
+        landC = pushC; landR = pushR;
+        pushC += dc; pushR += dr;
+      } else if (t.owner === pushed.owner) {
+        landC = pushC - dc; landR = pushR - dr; break;
+      } else {
+        landC = pushC; landR = pushR; break;
+      }
+    }
+    if (!inBoard(pushC, pushR)) { landC = pushC - dc; landR = pushR - dr; }
+    const landTarget = (landC !== tCol || landR !== tRow) ? board[landR]?.[landC] : null;
+    return { landC, landR, landTarget };
+  }
+
+  // ══════════════════════════════════════════════
+  //  走法生成
+  // ══════════════════════════════════════════════
+  function genAll(board, owner) {
+    const moves = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p || p.owner !== owner) continue;
+        const topGroup = p.groups ? p.groups[0] : p.layer;
+        const isMerged = p.groups && p.groups.length === 1 && p.layer > 1;
+        for (const m of generateMoves(board, c, r)) {
+          // 默认：带走 topGroup 层
+          moves.push({ srcCol:c, srcRow:r, ...m, layers: topGroup });
+          // 合体棋子拆分走法：可只带走 1..topGroup-1 层
+          if (isMerged) {
+            for (let splitL = 1; splitL < topGroup; splitL++) {
+              moves.push({ srcCol:c, srcRow:r, ...m, layers: splitL });
+            }
+          }
+        }
+        // 合体走法：groups 超过1个组时可合体
+        if (p.groups && p.groups.length > 1) {
+          moves.push({ srcCol:c, srcRow:r, col:c, row:r, kind:'merge', layers: p.layer });
+        }
+      }
+    return moves;
+  }
+
+  // 仅生成吃子/自爆（⑥ 静态搜索用）
+  // 注：冲撞是推己方棋子的战略走法，不属于战术吃子，
+  // 纳入QS会导致先手劣势（horizon effect），已移至主搜索genAll处理
+  function genCaptures(board, owner) {
+    const moves = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p || p.owner !== owner) continue;
+        const topGroup = p.groups ? p.groups[0] : p.layer;
+        for (const m of generateMoves(board, c, r)) {
+          if (m.kind === 'eat' || m.kind === 'explode')
+            moves.push({ srcCol:c, srcRow:r, ...m, layers: topGroup });
+        }
+      }
+    return moves;
+  }
+
+  // ══════════════════════════════════════════════
+  //  走法排序（TT走法 > 吃子MVV-LVA > 杀手 > 历史）
+  // ══════════════════════════════════════════════
+  function moveScore(m, board, ply, ttMove, prevM) {
+    if (ttMove && moveEq(m, ttMove)) return 9000000;
+    let s = 0;
+    if (m.kind === 'eat') {
+      const tgt = board[m.row]?.[m.col];
+      const src = board[m.srcRow]?.[m.srcCol];
+      if (tgt && src) {
+        const srcTop = src.groups ? src.groups[0] : src.layer;
+        const tgtTop = tgt.groups ? tgt.groups[0] : tgt.layer;
+        if (srcTop >= tgtTop) {
+          // 赢的吃子：MVV-LVA，优先吃高价值高层数目标，用廉价棋子吃
+          s += 100000 + pieceVal(tgt) * Math.min(tgt.layer, 8) * 10 - pieceVal(src);
+          if (!_CLASSIC && src.type === TYPE.KING && src.upgraded !== false) s += 150000; // 觉醒王吃子成长
+        } else {
+          // 输的吃子（牺牲/战术弃子）：大幅降低，排在杀手之后
+          s += 5000 + pieceVal(tgt) * Math.min(tgt.layer, 8) * 2;
+        }
+      }
+    }
+    if (m.kind === 'explode') {
+      // 根据实际爆炸收益决定优先级：只在命中敌方时高优先
+      const src2 = board[m.srcRow]?.[m.srcCol];
+      if (src2) {
+        const rad = src2.layer; // 范围=总层数，伤害固定1
+        let gain = -pieceVal(src2); // 损失本兵
+        for (let dc2 = -rad; dc2 <= rad; dc2++) {
+          for (let dr2 = -rad; dr2 <= rad; dr2++) {
+            if (dc2===0 && dr2===0) continue;
+            const tc = m.srcCol+dc2, tr2 = m.srcRow+dr2;
+            if (!inBoard(tc,tr2)) continue;
+            const t2 = board[tr2]?.[tc];
+            if (!t2) continue;
+            if (t2.type === TYPE.PAWN) {
+              if (t2.owner !== src2.owner) gain += pieceVal(t2) * t2.layer * 3;
+              else gain -= pieceVal(t2) * t2.layer;
+            } else {
+              const ratio = Math.min(1, t2.layer) / t2.layer;
+              if (t2.owner !== src2.owner) gain += pieceVal(t2) * ratio;
+              else gain -= pieceVal(t2) * ratio;
+            }
+          }
+        }
+        s += gain > 0 ? 80000 + gain * 5 : gain * 2;
+      }
+    }
+    if (m.kind === 'charge') {
+      // 计算冲撞实际落地收益，替代固定60000
+      const pushed = board[m.row]?.[m.col];
+      if (pushed) {
+        const isUnmerged = pushed.groups && pushed.groups.length > 1;
+        const pushedTop = isUnmerged
+          ? pushed.groups[pushed.groups.length - 1]
+          : (pushed.groups ? pushed.groups[0] : pushed.layer);
+        const landing = simChargeLanding(board, m.col, m.row, m.dc, m.dr);
+        let chargeVal = 0;
+        if (landing?.landTarget) {
+          const lt = landing.landTarget;
+          if (lt.owner !== pushed.owner) {
+            const ltTop = lt.groups ? lt.groups[0] : lt.layer;
+            if (pushedTop >= ltTop) {
+              chargeVal = pieceVal(lt) * Math.min(lt.layer, 8) * 8;
+              if (pushed.type === TYPE.KING && pushed.upgraded !== false) chargeVal += 200000; // 觉醒王撞敌成长
+            } else {
+              chargeVal = -pieceVal(pushed) * pushed.layer * 4; // 牺牲代价
+            }
+          }
+        }
+        s += 60000 + chargeVal;
+      } else {
+        s += 60000;
+      }
+    }
+    if (m.kind === 'merge') {
+      // 合体紧迫性：附近有敌方且合体后能打赢时优先级提升
+      const p = board[m.row]?.[m.col];
+      let urgency = 5000;
+      if (p) {
+        for (let dr2 = -3; dr2 <= 3 && urgency < 13000; dr2++) {
+          for (let dc2 = -3; dc2 <= 3; dc2++) {
+            const nc = m.col + dc2, nr2 = m.row + dr2;
+            if (!inBoard(nc, nr2)) continue;
+            const t = board[nr2]?.[nc];
+            if (t && t.owner !== p.owner) {
+              const tTop = t.groups ? t.groups[0] : t.layer;
+              if (p.layer > tTop) urgency = 13000; // 合体后立即能赢
+              else urgency = Math.max(urgency, 8000);
+            }
+          }
+        }
+      }
+      s += urgency;
+    }
+    if (ply < MAX_PLY && isKiller(ply, m)) s += 50000;
+    // 反向走法启发：对手上一步后，我方之前产生 cutoff 的走法
+    const cm = getCounter(prevM);
+    if (cm && moveEq(cm, m)) s += 30000;
+    s += Math.min(getHistory(m), 40000);
+    if (m.kind === 'stack') s += 10000;
+    return s;
+  }
+
+  // ══════════════════════════════════════════════
+  //  ⑥ 静态搜索（Quiescence Search）
+  // ══════════════════════════════════════════════
+  let nodes = 0, stopped = false;
+  // ── 重复局面检测 ──
+  const gameHashes = new Set();      // 实际对局中出现过的局面哈希
+  const searchPath = new Uint32Array(40); // 搜索路径哈希（按 ply 索引，无需清理）
+
+  function quiescence(board, alpha, beta, owner, dl, qd) {
+    nodes++;
+    if ((nodes & 4095) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if (!findKing(board, owner)) return -99999;
+    if (!findKing(board, enemy(owner))) return 99999;
+
+    const stand = evaluate(board, owner);
+    if (stand >= beta) return beta;
+    if (stand > alpha) alpha = stand;
+    if (qd <= 0) return alpha;
+
+    const caps = genCaptures(board, owner);
+    // MVV-LVA 排序 + SEE-lite 预估，好的吃子排前面
+    caps.sort((a, b) => {
+      const sa = board[a.srcRow]?.[a.srcCol], ta = board[a.row]?.[a.col];
+      const sb = board[b.srcRow]?.[b.srcCol], tb = board[b.row]?.[b.col];
+      const va = (ta && sa) ? seeLite(sa, ta) : 0;
+      const vb = (tb && sb) ? seeLite(sb, tb) : 0;
+      return vb - va;
+    });
+
+    for (const m of caps) {
+      if (m.kind === 'eat') {
+        const src = board[m.srcRow]?.[m.srcCol];
+        const tgt = board[m.row]?.[m.col];
+        if (src && tgt) {
+          // SEE-lite 剪枝：亏本超过一个兵的吃子，在QS里跳过（避免无谓兑子拉低分数）
+          // 例外：攻击对方王附近的棋子不剪枝
+          const see = seeLite(src, tgt);
+          if (see < -VAL.P && tgt.type !== TYPE.KING) continue;
+          // Delta 剪枝：即使吃到目标，也追不上 alpha（仅在非接近和棋时）
+          if (alpha > -80000 && stand + pieceVal(tgt) * tgt.layer + 200 < alpha) continue;
+        }
+      }
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (kc === enemy(owner)) return 99999;
+      if (kc === owner) continue;
+      const v = -quiescence(nb, -beta, -alpha, enemy(owner), dl, qd - 1);
+      if (stopped) return 0;
+      if (v >= beta) return beta;
+      if (v > alpha) alpha = v;
+    }
+    return alpha;
+  }
+
+  // ══════════════════════════════════════════════
+  //  NegaMax + Alpha-Beta（LMR + PVS + 全部优化）
+  // ══════════════════════════════════════════════
+  // LMR 深度缩减公式（激进版）：使用对数公式，分支因子越大缩减越多
+  // R = max(1, floor(ln(depth) × ln(mi+1) / 1.8))
+  // 对比旧版 √depth × √(mi+1) / 3：在高 mi 时缩减更深
+  function lmrReduction(depth, mi) {
+    const R = Math.floor(Math.log(depth) * Math.log(mi + 1) / 1.8);
+    return Math.min(depth - 1, Math.max(1, R));
+  }
+
+  // negamax 最大累计延伸深度（防止将军延伸无限循环）
+  const MAX_EXT = 6;
+
+  function negamax(board, depth, alpha, beta, owner, dl, ply, doNull, extSoFar = 0, prevMv = null) {
+    nodes++;
+    if ((nodes & 2047) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if (!findKing(board, owner)) return -99999 - depth;
+    if (!findKing(board, enemy(owner))) return 99999 + depth;
+    if (depth <= 0) return quiescence(board, alpha, beta, owner, dl, QS_MAX);
+
+    const hash = hashBoard(board, owner);
+
+    // ── 重复局面检测：出现过的局面视为和棋（迫使优势方走出进展）──
+    if (ply > 0) {
+      if (gameHashes.has(hash)) return 0;
+      for (let i = 0; i < ply; i++) if (searchPath[i] === hash) return 0;
+    }
+    searchPath[ply] = hash;
+
+    // ── 置换表探测 ──
+    let ttMove = null;
+    const ttHit = ttProbe(hash, depth, alpha, beta);
+    if (ttHit) {
+      if (ttHit.score !== undefined) return ttHit.score;
+      ttMove = ttHit.move;
+    }
+
+    // ── 内部迭代加深（IID）：无 TT 走法时先浅搜以改善走法排序 ──
+    if (!ttMove && depth >= 4 && ply > 0) {
+      negamax(board, depth - 2, alpha, beta, owner, dl, ply, doNull, extSoFar, prevMv);
+      if (stopped) return 0;
+      const iidHit = ttProbe(hash, 0, -100000, 100000);
+      if (iidHit?.move) ttMove = iidHit.move;
+    }
+
+    // ── 扩展无效裁剪（Extended Futility Pruning）──
+    // depth=1: margin=车+100=1100, depth=2: 1600, depth=3: 2100
+    // 远低于 alpha 时不可能追上，直接返回静态分
+    if (depth <= 3 && beta < 90000) {
+      const futMargin = VAL.R + 100 + (depth - 1) * 500;
+      const stand = evaluate(board, owner);
+      if (stand + futMargin < alpha) return stand;
+    }
+
+    // ── Razoring：depth 2-3 时评估差距大，用 QS 验证后剪枝 ──
+    if (depth >= 2 && depth <= 3 && beta < 90000) {
+      const razMargin = 300 + (depth - 1) * 250; // depth2=550, depth3=800
+      const razStand = evaluate(board, owner);
+      if (razStand + razMargin < alpha) {
+        const qv = quiescence(board, alpha, beta, owner, dl, QS_MAX);
+        if (stopped) return 0;
+        if (qv < alpha) return qv;
+      }
+    }
+
+    // ── 自适应空着裁剪（Adaptive Null-Move Pruning）──
+    // R 随 depth 增长：depth 6+ 用 R=3, 否则 R=2
+    // 评估远超 beta 时额外 +1（验证性裁剪更激进）
+    if (doNull && depth >= 3 && ply > 0) {
+      let nmR = depth >= 6 ? 3 : 2;
+      const nmStand = evaluate(board, owner);
+      if (nmStand >= beta + 200) nmR++;
+      const nv = -negamax(board, depth - 1 - nmR, -beta, -beta + 1, enemy(owner), dl, ply + 1, false, extSoFar, prevMv);
+      if (stopped) return 0;
+      if (nv >= beta) return beta;
+    }
+
+    const moves = genAll(board, owner);
+    if (!moves.length) return evaluate(board, owner);
+    moves.sort((a, b) => moveScore(b, board, ply, ttMove, prevMv) - moveScore(a, board, ply, ttMove, prevMv));
+
+    // ── 当前方是否被将军（LMP/History Pruning 在被将军时跳过）──
+    const inCheck = isInCheck(board, owner);
+
+    let best = -Infinity, bestMove = null, flag = TT_UPPER;
+
+    // ── LMP 阈值表：depth → 最多搜索的安静走法数 ──
+    const LMP_LIMITS = [0, 8, 14, 22];
+
+    for (let mi = 0, quietCount = 0; mi < moves.length; mi++) {
+      const m = moves[mi];
+      const isQuiet = m.kind === 'move' && !isKiller(ply, m);
+
+      // ── Late Move Pruning：浅层跳过排名靠后的安静走法 ──
+      if (isQuiet) {
+        quietCount++;
+        if (!inCheck && depth <= 3 && beta < 90000
+            && quietCount > LMP_LIMITS[depth]) continue;
+        // ── History Pruning：历史得分极低的安静走法在浅层剪掉 ──
+        if (!inCheck && depth <= 4 && beta < 90000
+            && getHistory(m) < -(depth * depth * 80)) continue;
+      }
+
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (kc === enemy(owner)) {
+        ttStore(hash, depth, 99999 + depth, TT_EXACT, m);
+        return 99999 + depth;
+      }
+      if (kc === owner) continue;
+
+      // ── 将军延伸：走法使对方进入将军状态，延伸1层（最多 MAX_EXT 累计）──
+      let ext = 0;
+      if (extSoFar < MAX_EXT && isInCheck(nb, enemy(owner))) ext = 1;
+
+      let v;
+      if (mi === 0) {
+        // ── PVS：第一个走法全窗口 ──
+        v = -negamax(nb, depth - 1 + ext, -beta, -alpha, enemy(owner), dl, ply + 1, true, extSoFar + ext, m);
+      } else {
+        // ── LMR：后续安静走法缩减深度 ──
+        let R = 0;
+        if (ext === 0 && depth >= 2 && mi >= 2 && isQuiet) {
+          R = lmrReduction(depth, mi);
+          // ── History-based LMR 加/减：历史低分多减，高分少减 ──
+          const hv = getHistory(m);
+          if (hv < 0) R = Math.min(R + 1, depth - 1);
+          else if (hv > depth * depth * 40) R = Math.max(R - 1, 0);
+        }
+        const d1 = R > 0 ? Math.max(depth - 1 - R + ext, 1) : depth - 1 + ext;
+        v = -negamax(nb, d1, -alpha - 1, -alpha, enemy(owner), dl, ply + 1, R === 0, extSoFar + ext, m);
+        if (!stopped && v > alpha) {
+          v = -negamax(nb, depth - 1 + ext, -beta, -alpha, enemy(owner), dl, ply + 1, true, extSoFar + ext, m);
+        }
+      }
+      if (stopped) return 0;
+
+      if (v > best) { best = v; bestMove = m; }
+      if (v > alpha) { alpha = v; flag = TT_EXACT; }
+      if (alpha >= beta) {
+        addKiller(ply, m);
+        addHistory(m, depth);
+        addCounter(prevMv, m);
+        // ── 历史惩罚：之前搜索过但没产生 cutoff 的安静走法扣分 ──
+        for (let pi = 0; pi < mi; pi++) {
+          const pm = moves[pi];
+          if (pm.kind === 'move' && !isKiller(ply, pm))
+            historyTab[hIdx(pm.srcCol, pm.srcRow)][hIdx(pm.col, pm.row)] -= depth * depth;
+        }
+        flag = TT_LOWER;
+        break;
+      }
+    }
+
+    if (bestMove) ttStore(hash, depth, best, flag, bestMove);
+    return best === -Infinity ? -99999 : best;
+  }
+
+  // ══════════════════════════════════════════════
+  //  迭代加深入口
+  // ══════════════════════════════════════════════
+  const ROOT_VARIETY = 10; // 根节点多样化容差（分）—— 对局游戏减小随机性
+
+  function bestMove(board, owner, ms, history) {
+    const dl = Date.now() + ms;
+    let best = null;
+    nodes = 0; stopped = false; ponderAbort = false;
+    let lastScores = null;
+    let prevScore = 0; // 上一深度的最优分，用于预设搜索窗口
+    for (let i = 0; i < MAX_PLY; i++) killers[i] = [null, null]; // 每次搜索重置杀手表
+
+    // ── 重复局面检测初始化：收集对局历史中的所有局面哈希 ──
+    gameHashes.clear();
+    if (history) {
+      for (const entry of history) gameHashes.add(hashBoard(entry.board, entry.turn));
+    }
+    searchPath[0] = hashBoard(board, owner); // 根节点
+
+    const moves = genAll(board, owner);
+    if (!moves.length) return null;
+    for (const m of moves) {
+      if (applyMove(board, m.srcCol, m.srcRow, m).kingCaptured === enemy(owner)) return m;
+    }
+
+    const ASPIRATION_INIT = 40; // 初始窗口半径（分）
+
+    for (let d = 1; d <= 20; d++) {
+      const hash = hashBoard(board, owner);
+      const ttHit = ttProbe(hash, 0, 0, 0);
+      const ttM = ttHit?.move || null;
+      moves.sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null));
+
+      // ── Aspiration Windows：从第4层起用对称窗口，失败则指数扩宽后重搜 ──
+      let aspirDelta = ASPIRATION_INIT;
+      let aspirAlpha = d >= 4 ? prevScore - aspirDelta : -Infinity;
+      let aspirBeta  = d >= 4 ? prevScore + aspirDelta :  Infinity;
+
+      // 最多重搜 3 次（每次扩宽一倍）
+      for (let retry = 0; retry < 4; retry++) {
+        let alpha = aspirAlpha;
+        let dBest = null;
+        const depthScores = [];
+        let failLow = false, failHigh = false;
+
+        for (let ri = 0; ri < moves.length; ri++) {
+          const m = moves[ri];
+          const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+          if (kc === owner) { depthScores.push({ m, v: -Infinity }); continue; }
+          if (kc === enemy(owner)) return m;
+          if (kc === 'draw') {
+            depthScores.push({ m, v: 0, exact: true });
+            if (0 > alpha) { alpha = 0; dBest = m; }
+            continue;
+          }
+
+          let v, exact = false;
+          if (ri === 0) {
+            v = -negamax(nb, d - 1, -aspirBeta, -alpha, enemy(owner), dl, 1, true);
+            exact = true;
+          } else {
+            v = -negamax(nb, d - 1, -alpha - 1, -alpha, enemy(owner), dl, 1, true);
+            if (!stopped && v > alpha) {
+              v = -negamax(nb, d - 1, -aspirBeta, -alpha, enemy(owner), dl, 1, true);
+              exact = true;
+            }
+          }
+          if (stopped) break;
+          depthScores.push({ m, v, exact });
+          if (v > alpha) { alpha = v; dBest = m; }
+        }
+
+        if (stopped) break;
+
+        // 检查窗口失败：fail-low（alpha 未超过下界）或 fail-high（超过上界）
+        if (d >= 4 && alpha <= aspirAlpha && retry < 3) {
+          failLow = true;
+          aspirAlpha = Math.max(alpha - aspirDelta, -Infinity);
+          aspirDelta *= 3;
+          continue; // 重搜
+        }
+        if (d >= 4 && dBest && depthScores.some(s => s.v > aspirBeta - 1) && retry < 3) {
+          failHigh = true;
+          aspirBeta = Math.min(aspirBeta + aspirDelta, Infinity);
+          aspirDelta *= 3;
+          continue;
+        }
+
+        // 窗口成功
+        if (dBest) { best = dBest; prevScore = alpha; lastScores = depthScores; }
+        console.log(`AI depth${d}${retry>0?'(retry'+retry+')':''}: ${alpha} (${nodes}节点)`);
+        if (alpha > 90000) { stopped = true; }
+        break;
+      }
+
+      if (stopped) break;
+    }
+
+    // 根节点多样化：仅在已精确评分的走法中随机选，避免把零窗口探测的虚高分误当等优走法
+    if (lastScores && lastScores.length > 0) {
+      const bestScore = Math.max(...lastScores.filter(s => s.exact).map(s => s.v));
+      const candidates = lastScores.filter(s => s.exact && s.v >= bestScore - ROOT_VARIETY && s.v > -90000);
+      if (candidates.length > 1) best = candidates[Math.floor(Math.random() * candidates.length)].m;
+    }
+
+    if (!best && moves.length) {
+      // 过滤掉纯自杀走法（'draw'和棋可以接受）
+      const safe = moves.filter(m => {
+        const kc = applyMove(board, m.srcCol, m.srcRow, m).kingCaptured;
+        return kc !== owner;
+      });
+      best = safe.length ? safe[Math.floor(Math.random() * safe.length)] : moves[0];
+    }
+    return best;
+  }
+
+  function clearTT() { tt.fill(null); for (const row of historyTab) row.fill(0); for (const row of counterTab) row.fill(null); }
+
+  // 供显示用：带静态搜索（QS）的快速估值，解算吃子链后再返回分数
+  // nextMover = 下一个实际走棋方；返回值始终为红方视角（正=红方有利）
+  function quickEval(board, nextMover) {
+    nodes = 0;
+    stopped = false;
+    const score = quiescence(board, -100000, 100000, nextMover, Date.now() + 30, QS_MAX);
+    const raw = stopped ? evaluate(board, nextMover) : score;
+    // raw 是 nextMover 视角；统一转为红方视角
+    return nextMover === RED ? raw : -raw;
+  }
+
+  // ── Pondering：利用对手时间持续思考，预热 TT ──
+  let ponderAbort = false;
+  function abortPonder() { ponderAbort = true; }
+
+  function ponder(board, oppSide, ms, history) {
+    ponderAbort = false;
+    const hash = hashBoard(board, oppSide);
+    const ttHit = ttProbe(hash, 0, -100000, 100000);
+    if (!ttHit?.move) return;
+    const pred = ttHit.move;
+    const { board: nb, kingCaptured: kc } = applyMove(board, pred.srcCol, pred.srcRow, pred);
+    if (kc) return;
+    const aiSide = enemy(oppSide);
+    const hist2 = history ? [...history, { board, turn: oppSide }] : [{ board, turn: oppSide }];
+    // 用给定时间搜索"对手走完后我该怎么应"
+    bestMove(nb, aiSide, ms, hist2);
+  }
+
+  // 持续 Pondering：反复加深搜索直到被中断
+  // 每轮搜索 sliceMs 毫秒，搜完一轮检查是否该停止
+  function ponderLoop(board, oppSide, sliceMs, history) {
+    ponderAbort = false;
+    const hash = hashBoard(board, oppSide);
+
+    // 尝试预测对手的前几步走法（多路预测）
+    const predictions = [];
+    const ttHit = ttProbe(hash, 0, -100000, 100000);
+    if (ttHit?.move) predictions.push(ttHit.move);
+
+    // 如无预测走法，用快速1层搜索找到
+    if (predictions.length === 0) {
+      bestMove(board, oppSide, 50, history);
+      if (ponderAbort) return;
+      const hit2 = ttProbe(hash, 0, -100000, 100000);
+      if (hit2?.move) predictions.push(hit2.move);
+    }
+    if (predictions.length === 0) return;
+
+    // 对最可能的对手走法，持续加深搜索我方应手
+    const pred = predictions[0];
+    const { board: nb, kingCaptured: kc } = applyMove(board, pred.srcCol, pred.srcRow, pred);
+    if (kc) return;
+
+    const aiSide = enemy(oppSide);
+    const hist2 = history ? [...history, { board, turn: oppSide }] : [{ board, turn: oppSide }];
+
+    // 反复用 sliceMs 时间片搜索，每次结果存入 TT 供后续加深
+    while (!ponderAbort) {
+      bestMove(nb, aiSide, sliceMs, hist2);
+      if (ponderAbort) break;
+      // 每轮之间让出主线程一帧
+      break; // 同步版本：一次搜索后返回，由外层 setTimeout 循环调用
+    }
+  }
+
+  return { bestMove, clearTT, evaluate, quickEval, ponder, ponderLoop, abortPonder };
+})();
+
+// ─────────────────────────────────────────────
+//  AI 游戏集成
+// ─────────────────────────────────────────────
+function updateAIUI() {
+  // AI 按钮已移除，仅保留消息提示
+  const mg = document.getElementById('message');
+  if (!mg) return;
+  if (aiState.enabled && aiState.thinking) mg.textContent = 'AI思考中...';
+}
+
+function toggleAI() {
+  if (aiState.thinking) return;
+  aiState.enabled = !aiState.enabled;
+  updateAIUI();
+  if (aiState.enabled && !game.gameOver && !anim.playing && game.turn === aiState.side) {
+    setTimeout(triggerAI, 300);
+  }
+}
+
+async function triggerAI() {
+  if (!aiState.enabled || game.gameOver || anim.playing || aiState.thinking) return;
+  if (game.turn !== aiState.side) return;
+  // ── 中断 Pondering ──
+  if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
+  AI.abortPonder();
+  aiState.pondering = false;
+
+  aiState.thinking = true;
+  updateAIUI();
+  document.getElementById('message').textContent = 'AI思考中...';
+  await new Promise(r => setTimeout(r, 50));
+
+  const move = AI.bestMove(game.board, game.turn, aiState.timeLimit, game.history);
+  aiState.thinking = false;
+  updateAIUI();
+  if (!move || game.gameOver || !aiState.enabled) return;
+
+  game.selected = { col: move.srcCol, row: move.srcRow };
+  game.chosenLayers = move.layers;
+  game.phase = 'pickTarget';
+  game.specialMode = false;
+  game.legalMoves = [];
+
+  await executeMove(move);
+
+  // ── 持续 Pondering：AI 走完后利用对手全部思考时间 ──
+  if (aiState.enabled && !game.gameOver && game.turn !== aiState.side) {
+    aiState.pondering = true;
+    const ponderTick = () => {
+      if (!aiState.enabled || game.gameOver || game.turn === aiState.side || aiState.thinking) {
+        aiState.pondering = false;
+        return;
+      }
+      AI.ponderLoop(game.board, game.turn, 500, game.history);
+      if (!aiState.enabled || game.gameOver || game.turn === aiState.side || aiState.thinking) {
+        aiState.pondering = false;
+        return;
+      }
+      // 让出主线程一帧后继续下一轮思考
+      aiState.ponderTimer = setTimeout(ponderTick, 10);
+    };
+    aiState.ponderTimer = setTimeout(ponderTick, 200);
+  }
+}
+
+// AI toggle removed — controlled via URL param ?ai=1
+
+// 提和按钮
+document.getElementById('btn-draw').addEventListener('click', () => {
+  if (game.gameOver || anim.playing || aiState.thinking) return;
+  if (!aiState.enabled) {
+    // 人人对战：直接和棋
+    game.gameOver = true; game.isDraw = true; game.winner = null;
+    addLog('【双方同意和棋】', true);
+    updateUI(); updateCapturedDisplay(); render();
+    _reportGameEnd();
+    return;
+  }
+  // 人机对战：AI评估是否接受
+  const aiScore = AI.evaluate(game.board, aiState.side); // AI视角分数
+  const DRAW_ACCEPT = 200; // AI领先超过200分时拒绝
+  if (aiScore > DRAW_ACCEPT) {
+    const mg = document.getElementById('message');
+    mg.textContent = 'AI 拒绝和棋请求';
+    setTimeout(() => updateUI(), 2500);
+  } else {
+    game.gameOver = true; game.isDraw = true; game.winner = null;
+    addLog('【AI同意和棋】', true);
+    updateUI(); updateCapturedDisplay(); render();
+    _reportGameEnd();
+  }
+});
+
+// ─────────────────────────────────────────────
+//  对局结束：向父页面上报统计（postMessage）
+// ─────────────────────────────────────────────
+function _reportGameEnd() {
+  if (!_LEVEL_ID) return;  // 不在关卡模式下（独立打开）则跳过
+  gameStats.win = game.winner === RED;
+  try {
+    window.parent.postMessage({ type: 'game-end', stats: { ...gameStats } }, '*');
+  } catch(e) {}
+}
+
+// iframe 嵌入模式
+if (window.self !== window.top) {
+  document.body.classList.add('in-iframe');
+}
+
+// 初始化
+updateUI();
+render();
+updateScoreDisplay(false);
+
+// URL 参数：自动开启 AI
+if (_AI_ON) {
+  aiState.timeLimit = _AI_TIME;
+  aiState.enabled   = true;
+  updateAIUI();
+  if (!game.gameOver && game.turn === aiState.side) setTimeout(triggerAI, 500);
+}
+// 传统模式：更新标题
+if (_CLASSIC) {
+  document.getElementById('page-title').textContent = '传统象棋';
+}
+</script>
+</body>
+</html>
