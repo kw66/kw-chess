@@ -24,8 +24,8 @@
           <span>♚</span><b>自由对弈</b>
         </button>`:""}
       </div>
-    </section>`}function x(e,a,s){return`<button class="home-tool-button" type="button" data-home-panel="${e}" aria-controls="home-panel-${e}" aria-pressed="false" aria-expanded="false">
-    <span>${a}</span><b>${s}</b>
+    </section>`}function x(e,a){return`<button class="home-tool-button" type="button" data-home-panel="${e}" aria-controls="home-panel-${e}" aria-pressed="false" aria-expanded="false">
+    <b>${a}</b>
   </button>`}function J(e,a,s,n){const i=e.totalGames>0?`${Math.round(e.totalWins/e.totalGames*100)}%`:"新局";return`
     <article class="home-modal-block author-card">
       <h3>作者</h3>
@@ -124,7 +124,7 @@
         </div>
       </section>
     </div>`}function z(e,a,s,n){return`
-    ${S("author","作者",J(e,a,s,n))}
+    ${S("author","游戏信息",J(e,a,s,n))}
     ${S("codex","棋子图鉴",V(e.starsPerLevel))}
     ${S("settings","设置",Y())}`}function Q(e,a){const n=(a[e.id]||0)>>0&1;return`
     <button class="freeplay-card" data-select-level="${e.id}">
@@ -171,9 +171,9 @@
           <h1 class="home-title">科王象棋</h1>
         </div>
         <nav class="home-tool-bar" aria-label="游戏工具">
-          ${x("author","👤","作者")}
-          ${x("codex","📖","棋子图鉴")}
-          ${x("settings","⚙","设置")}
+          ${x("author","游戏信息")}
+          ${x("codex","棋子图鉴")}
+          ${x("settings","设置")}
         </nav>
       </header>
 
