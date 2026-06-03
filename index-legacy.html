@@ -400,10 +400,19 @@ const _AI_UPGRADES     = _parseUpgrades('au'); // BLACK 方升级棋子
 // ─────────────────────────────────────────────
 //  游戏统计（用于关卡星星判定，via postMessage）
 // ─────────────────────────────────────────────
+const STAT_TYPES = ['K', 'R', 'C', 'H', 'B', 'A', 'P'];
+function createTypeCountMap() {
+  return Object.fromEntries(STAT_TYPES.map(type => [type, 0]));
+}
+function createSurvivalMap() {
+  return Object.fromEntries(STAT_TYPES.map(type => [type, { moves: 0, games: 0 }]));
+}
 const gameStats = {
   typesMoved:    [],   // 红方移动过的棋子 TYPE 集合
   typesCaptured: [],   // 红方发起吃子所用的棋子 TYPE 集合（判断"用4种棋子吃子"）
   redKillsByType: { K:0, R:0, C:0, H:0, B:0, A:0, P:0 },
+  redSurvivalByType: createSurvivalMap(),
+  redSurvivalFinalized: false,
   totalMoves: 0,       // 总步数
   kingLeftPalace: false,
   kingKillsStacked: 0,
@@ -1503,6 +1512,7 @@ const game = {
   lastMove: null,       // {fromCol,fromRow,toCol,toRow} 上一步标记
   captured: [],         // [{owner,type}] 已损失棋子
 };
+redStartingCountsByType = countLayersByOwner(game.board, RED);
 
 // ─────────────────────────────────────────────
 //  动画系统
@@ -1598,6 +1608,54 @@ function diffCaptures(oldBoard, newBoard) {
     if (d > 0) { const [owner,type] = k.split('_'); for (let i=0;i<d;i++) lost.push({owner,type}); }
   }
   return lost;
+}
+
+function countLayersByOwner(board, owner) {
+  const counts = createTypeCountMap();
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.owner !== owner) continue;
+      counts[p.type] = (counts[p.type] || 0) + (p.layer || 1);
+    }
+  }
+  return counts;
+}
+
+var redStartingCountsByType = null;
+
+function addRedSurvival(type, moves, count = 1) {
+  if (!gameStats.redSurvivalByType[type]) {
+    gameStats.redSurvivalByType[type] = { moves: 0, games: 0 };
+  }
+  const safeCount = Math.max(0, Math.trunc(Number(count) || 0));
+  const safeMoves = Math.max(0, Math.min(300, Math.trunc(Number(moves) || 0)));
+  if (!safeCount) return;
+  gameStats.redSurvivalByType[type].moves += safeMoves * safeCount;
+  gameStats.redSurvivalByType[type].games += safeCount;
+}
+
+function recordRedSurvivalLosses(captures, moves) {
+  captures
+    .filter(c => c.owner === RED)
+    .forEach(c => addRedSurvival(c.type, moves, 1));
+}
+
+function resetRedSurvivalStats() {
+  redStartingCountsByType = countLayersByOwner(game.board, RED);
+  gameStats.redSurvivalByType = createSurvivalMap();
+  gameStats.redSurvivalFinalized = false;
+}
+
+function finalizeRedSurvivalStats() {
+  if (gameStats.redSurvivalFinalized) return;
+  if (!redStartingCountsByType) redStartingCountsByType = countLayersByOwner(initBoard(), RED);
+  for (const type of STAT_TYPES) {
+    const expected = redStartingCountsByType[type] || 0;
+    const counted = gameStats.redSurvivalByType[type]?.games || 0;
+    addRedSurvival(type, gameStats.totalMoves, Math.max(0, expected - counted));
+  }
+  gameStats.redSurvivalFinalized = true;
 }
 
 function updateCapturedDisplay() {
@@ -1892,6 +1950,7 @@ async function executeMove(move) {
   // 追踪损失棋子（用动画前的快照比较，因为动画过程中 game.board 已被修改）
   const newCaps = diffCaptures(oldBoard, newBoard);
   game.captured.push(...newCaps);
+  recordRedSurvivalLosses(newCaps, gameStats.totalMoves + (piece.owner === RED ? 1 : 0));
 
   // ── 关卡统计追踪（红方走棋时） ──
   if (piece.owner === RED) {
@@ -2032,6 +2091,8 @@ function restartGame() {
   gameStats.typesMoved    = [];
   gameStats.typesCaptured = [];
   gameStats.redKillsByType = { K:0, R:0, C:0, H:0, B:0, A:0, P:0 };
+  gameStats.redSurvivalByType = createSurvivalMap();
+  gameStats.redSurvivalFinalized = false;
   gameStats.totalMoves    = 0;
   gameStats.kingLeftPalace = false;
   gameStats.kingKillsStacked = 0;
@@ -2040,6 +2101,7 @@ function restartGame() {
   gameStats.rookTransportedStackedPawn = false;
   gameStats.stackedPawnReachedBottom   = false;
   gameStats.win = false;
+  resetRedSurvivalStats();
   moveLogSimple = [];
   logReset();
   aiState.thinking = false;
@@ -4204,6 +4266,7 @@ document.getElementById('btn-draw').addEventListener('click', () => {
 function _reportGameEnd() {
   if (!_LEVEL_ID) return;  // 不在关卡模式下（独立打开）则跳过
   gameStats.win = game.winner === RED;
+  finalizeRedSurvivalStats();
   try {
     window.parent.postMessage({ type: 'game-end', stats: { ...gameStats } }, '*');
   } catch(e) {}
