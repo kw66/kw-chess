@@ -74,16 +74,10 @@ body {
 
 #board-wrap {
   position: relative;
-  background:
-    linear-gradient(135deg, #ffe0a1 0%, #b77935 46%, #5b3218 100%);
-  border: 3px solid #9b6429;
+  background: #c8a96e;
+  border: 3px solid #7a5c2e;
   border-radius: 4px;
-  box-shadow:
-    0 8px 32px #0009,
-    0 0 0 1px #ffe8aa66,
-    0 0 0 6px #7a5c2e55,
-    inset 0 1px 0 #fff0bc88,
-    inset 0 -2px 0 #3f1f0f77;
+  box-shadow: 0 8px 32px #0008, 0 0 0 6px #7a5c2e44;
 }
 canvas { display: block; width: 100%; max-width: 100%; height: auto; }
 
@@ -2263,52 +2257,16 @@ const CHARS = {
 const FG   = { [RED]:'#c0392b', [BLACK]:'#111' };
 const BG   = { [RED]:'#fce8c8', [BLACK]:'#d5d0c0' };
 const BORD = { [RED]:'#8b1a0a', [BLACK]:'#444' };
-const PIECE_METAL = {
-  [RED]: {
-    rim0: '#fff6d6', rim1: '#f0c979', rim2: '#9f4d24',
-    face0: '#fff8e2', face1: '#f7e2b5', face2: '#d9a757',
-    text: '#c0392b', border: '#8b1a0a'
-  },
-  [BLACK]: {
-    rim0: '#f5f1df', rim1: '#c6c0aa', rim2: '#5d5a52',
-    face0: '#f8f4e8', face1: '#d9d3bd', face2: '#918b7c',
-    text: '#111', border: '#3d3a34'
-  },
-};
 
 function render() {
   ctx.clearRect(0, 0, W, H);
 
   // 棋盘底色
-  const boardGrad = ctx.createLinearGradient(0, 0, W, H);
-  boardGrad.addColorStop(0, '#eed087');
-  boardGrad.addColorStop(0.36, '#cda764');
-  boardGrad.addColorStop(0.72, '#b98645');
-  boardGrad.addColorStop(1, '#7a4c24');
-  ctx.fillStyle = boardGrad;
+  ctx.fillStyle = '#c8a96e';
   ctx.fillRect(0, 0, W, H);
-
-  const boardGlow = ctx.createRadialGradient(W * 0.48, H * 0.42, 80, W * 0.5, H * 0.5, W * 0.72);
-  boardGlow.addColorStop(0, 'rgba(255, 239, 181, 0.28)');
-  boardGlow.addColorStop(0.58, 'rgba(255, 239, 181, 0)');
-  boardGlow.addColorStop(1, 'rgba(69, 35, 15, 0.28)');
-  ctx.fillStyle = boardGlow;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-  ctx.globalAlpha = 0.14;
-  ctx.strokeStyle = '#fff3bf';
-  ctx.lineWidth = 1;
-  for (let y = 12; y < H; y += 12) {
-    ctx.beginPath();
-    ctx.moveTo(0, y + 0.5);
-    ctx.lineTo(W, y + 0.5);
-    ctx.stroke();
-  }
-  ctx.restore();
 
   // 网格
-  ctx.strokeStyle = '#715027';
+  ctx.strokeStyle = '#7a5c2e';
   ctx.lineWidth = 1;
   for (let c = 0; c < COLS; c++) {
     if (c === 0 || c === COLS-1) {
@@ -2661,103 +2619,48 @@ function corner(x,y,s) {
   }
 }
 
-function drawLayerBadge(x, y, label, piece) {
-  const isKing = piece.type === TYPE.KING;
-  const badge = ctx.createRadialGradient(x - 3, y - 4, 1, x, y, 10);
-  badge.addColorStop(0, '#fff1b8');
-  badge.addColorStop(0.42, isKing ? '#9c68c8' : '#df5a42');
-  badge.addColorStop(1, isKing ? '#52236f' : '#7b170f');
-  ctx.beginPath();
-  ctx.arc(x, y, 9, 0, Math.PI * 2);
-  ctx.fillStyle = badge;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 238, 178, 0.82)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = '#fff9e8';
-  ctx.font = 'bold 10px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x, y);
-}
-
 // 在任意坐标绘制棋子（动画滑动用）
 function drawPieceAt(x, y, piece, selected) {
-  const skin = PIECE_METAL[piece.owner];
-  ctx.save();
-
   if (selected) {
-    const sel = ctx.createRadialGradient(x, y, R + 2, x, y, R + 10);
-    sel.addColorStop(0, 'rgba(255, 214, 76, 0.08)');
-    sel.addColorStop(1, 'rgba(255, 214, 76, 0.48)');
     ctx.beginPath();
-    ctx.arc(x, y, R + 8, 0, Math.PI * 2);
-    ctx.fillStyle = sel;
+    ctx.arc(x, y, R+6, 0, Math.PI*2);
+    ctx.fillStyle = '#f1c40f55';
     ctx.fill();
   }
-
-  ctx.shadowColor = 'rgba(45, 20, 8, 0.38)';
-  ctx.shadowBlur = 5;
-  ctx.shadowOffsetY = 2;
-  const rim = ctx.createRadialGradient(x - R * 0.34, y - R * 0.42, 2, x, y, R + 3);
-  rim.addColorStop(0, skin.rim0);
-  rim.addColorStop(0.48, skin.rim1);
-  rim.addColorStop(1, skin.rim2);
-  ctx.beginPath();
-  ctx.arc(x, y, R, 0, Math.PI * 2);
-  ctx.fillStyle = rim;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-
-  ctx.strokeStyle = selected ? '#ffd54c' : skin.border;
-  ctx.lineWidth = selected ? 3 : 2;
-  ctx.stroke();
-
-  const face = ctx.createRadialGradient(x - R * 0.28, y - R * 0.32, 2, x, y, R - 5);
-  face.addColorStop(0, skin.face0);
-  face.addColorStop(0.58, skin.face1);
-  face.addColorStop(1, skin.face2);
-  ctx.beginPath();
-  ctx.arc(x, y, R - 5, 0, Math.PI * 2);
-  ctx.fillStyle = face;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(x, y, R - 6, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(112, 58, 22, 0.42)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(x, y, R - 10, Math.PI * 1.08, Math.PI * 1.88);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.fillStyle = skin.text;
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI*2);
+  ctx.fillStyle = BG[piece.owner]; ctx.fill();
+  ctx.strokeStyle = selected ? '#f1c40f' : BORD[piece.owner];
+  ctx.lineWidth = selected ? 3 : 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, R-4, 0, Math.PI*2);
+  ctx.strokeStyle = BORD[piece.owner]; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = FG[piece.owner];
   ctx.font = 'bold 19px "Microsoft YaHei",serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(255, 248, 220, 0.45)';
-  ctx.shadowBlur = 2;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(CHARS[piece.owner][piece.type], x, y);
-  ctx.shadowBlur = 0;
-
   if (piece.layer > 1) {
     if (piece.groups && piece.groups.length > 1) {
+      // 未合体：同样的红圆样式，在右侧上下等分点显示各组层数
       const n = piece.groups.length;
       const lx = x + R - 8;
+      const baseColor = piece.type === TYPE.KING ? '#8e44ad' : '#e74c3c';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (let i = 0; i < n; i++) {
         const ly = y - (R - 8) + i * 2 * (R - 8) / (n - 1);
-        drawLayerBadge(lx, ly, piece.groups[i], piece);
+        ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI * 2);
+        ctx.fillStyle = baseColor; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
+        ctx.fillText(piece.groups[i], lx, ly);
       }
     } else {
-      drawLayerBadge(x + R - 8, y + R - 8, piece.layer, piece);
+      // 已合体：右下角红圆显示总层数
+      const lx = x+R-8, ly = y+R-8;
+      ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI*2);
+      ctx.fillStyle = piece.type===TYPE.KING ? '#8e44ad' : '#e74c3c'; ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(piece.layer, lx, ly);
     }
   }
-
-  ctx.restore();
 }
 
 function drawPiece(col, row, piece, selected) {
