@@ -2265,13 +2265,13 @@ const BG   = { [RED]:'#fce8c8', [BLACK]:'#d5d0c0' };
 const BORD = { [RED]:'#8b1a0a', [BLACK]:'#444' };
 const PIECE_METAL = {
   [RED]: {
-    rim0: '#f4ca71', rim1: '#a95a25', rim2: '#5d1f10',
-    face0: '#f6e6b5', face1: '#dfbd6b', face2: '#a6642e',
+    rim0: '#fff6d6', rim1: '#f0c979', rim2: '#9f4d24',
+    face0: '#fff8e2', face1: '#f7e2b5', face2: '#d9a757',
     text: '#c0392b', border: '#8b1a0a'
   },
   [BLACK]: {
-    rim0: '#d3cec0', rim1: '#847f72', rim2: '#2d2b27',
-    face0: '#d9d4c4', face1: '#aaa493', face2: '#5f5a50',
+    rim0: '#f5f1df', rim1: '#c6c0aa', rim2: '#5d5a52',
+    face0: '#f8f4e8', face1: '#d9d3bd', face2: '#918b7c',
     text: '#111', border: '#3d3a34'
   },
 };
@@ -2281,19 +2281,31 @@ function render() {
 
   // 棋盘底色
   const boardGrad = ctx.createLinearGradient(0, 0, W, H);
-  boardGrad.addColorStop(0, '#d4a660');
-  boardGrad.addColorStop(0.34, '#bd8745');
-  boardGrad.addColorStop(0.68, '#9b6432');
-  boardGrad.addColorStop(1, '#6c3d20');
+  boardGrad.addColorStop(0, '#eed087');
+  boardGrad.addColorStop(0.36, '#cda764');
+  boardGrad.addColorStop(0.72, '#b98645');
+  boardGrad.addColorStop(1, '#7a4c24');
   ctx.fillStyle = boardGrad;
   ctx.fillRect(0, 0, W, H);
 
-  const boardGlow = ctx.createRadialGradient(W * 0.5, H * 0.38, 120, W * 0.5, H * 0.5, W * 0.72);
-  boardGlow.addColorStop(0, 'rgba(238, 190, 104, 0.16)');
-  boardGlow.addColorStop(0.58, 'rgba(238, 190, 104, 0)');
-  boardGlow.addColorStop(1, 'rgba(48, 25, 13, 0.3)');
+  const boardGlow = ctx.createRadialGradient(W * 0.48, H * 0.42, 80, W * 0.5, H * 0.5, W * 0.72);
+  boardGlow.addColorStop(0, 'rgba(255, 239, 181, 0.28)');
+  boardGlow.addColorStop(0.58, 'rgba(255, 239, 181, 0)');
+  boardGlow.addColorStop(1, 'rgba(69, 35, 15, 0.28)');
   ctx.fillStyle = boardGlow;
   ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.globalAlpha = 0.14;
+  ctx.strokeStyle = '#fff3bf';
+  ctx.lineWidth = 1;
+  for (let y = 12; y < H; y += 12) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(W, y + 0.5);
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // 网格
   ctx.strokeStyle = '#715027';
@@ -2652,14 +2664,14 @@ function corner(x,y,s) {
 function drawLayerBadge(x, y, label, piece) {
   const isKing = piece.type === TYPE.KING;
   const badge = ctx.createRadialGradient(x - 3, y - 4, 1, x, y, 10);
-  badge.addColorStop(0, isKing ? '#b987d7' : '#e46a50');
-  badge.addColorStop(0.55, isKing ? '#7b3f9a' : '#b6291a');
-  badge.addColorStop(1, isKing ? '#3e1a56' : '#5f1009');
+  badge.addColorStop(0, '#fff1b8');
+  badge.addColorStop(0.42, isKing ? '#9c68c8' : '#df5a42');
+  badge.addColorStop(1, isKing ? '#52236f' : '#7b170f');
   ctx.beginPath();
   ctx.arc(x, y, 9, 0, Math.PI * 2);
   ctx.fillStyle = badge;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(237, 190, 102, 0.82)';
+  ctx.strokeStyle = 'rgba(255, 238, 178, 0.82)';
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = '#fff9e8';
@@ -2684,12 +2696,12 @@ function drawPieceAt(x, y, piece, selected) {
     ctx.fill();
   }
 
-  ctx.shadowColor = 'rgba(35, 17, 9, 0.48)';
-  ctx.shadowBlur = 4;
+  ctx.shadowColor = 'rgba(45, 20, 8, 0.38)';
+  ctx.shadowBlur = 5;
   ctx.shadowOffsetY = 2;
-  const rim = ctx.createRadialGradient(x - R * 0.3, y - R * 0.32, 2, x, y, R + 3);
+  const rim = ctx.createRadialGradient(x - R * 0.34, y - R * 0.42, 2, x, y, R + 3);
   rim.addColorStop(0, skin.rim0);
-  rim.addColorStop(0.44, skin.rim1);
+  rim.addColorStop(0.48, skin.rim1);
   rim.addColorStop(1, skin.rim2);
   ctx.beginPath();
   ctx.arc(x, y, R, 0, Math.PI * 2);
@@ -2702,37 +2714,35 @@ function drawPieceAt(x, y, piece, selected) {
   ctx.lineWidth = selected ? 3 : 2;
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(x, y, R - 4, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(45, 22, 10, 0.38)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  const face = ctx.createRadialGradient(x - R * 0.22, y - R * 0.24, 2, x, y, R - 7);
+  const face = ctx.createRadialGradient(x - R * 0.28, y - R * 0.32, 2, x, y, R - 5);
   face.addColorStop(0, skin.face0);
   face.addColorStop(0.58, skin.face1);
   face.addColorStop(1, skin.face2);
   ctx.beginPath();
-  ctx.arc(x, y, R - 8, 0, Math.PI * 2);
+  ctx.arc(x, y, R - 5, 0, Math.PI * 2);
   ctx.fillStyle = face;
   ctx.fill();
 
   ctx.beginPath();
-  ctx.arc(x, y, R - 8, 0, Math.PI * 2);
-  ctx.strokeStyle = piece.owner === RED ? 'rgba(126, 50, 17, 0.42)' : 'rgba(33, 32, 30, 0.45)';
+  ctx.arc(x, y, R - 6, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(112, 58, 22, 0.42)';
   ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x, y, R - 10, Math.PI * 1.08, Math.PI * 1.88);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
+  ctx.lineWidth = 2;
   ctx.stroke();
 
   ctx.fillStyle = skin.text;
   ctx.font = 'bold 19px "Microsoft YaHei",serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor = piece.owner === RED ? 'rgba(255, 226, 154, 0.35)' : 'rgba(230, 225, 206, 0.3)';
-  ctx.shadowBlur = 1.2;
-  ctx.shadowOffsetY = 0.5;
+  ctx.shadowColor = 'rgba(255, 248, 220, 0.45)';
+  ctx.shadowBlur = 2;
   ctx.fillText(CHARS[piece.owner][piece.type], x, y);
   ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
 
   if (piece.layer > 1) {
     if (piece.groups && piece.groups.length > 1) {
