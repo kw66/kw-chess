@@ -84,29 +84,40 @@ canvas { display: block; width: 100%; max-width: 100%; height: auto; }
 /* iframe 嵌入模式：只显示棋盘，统计数据由外层 app 面板展示 */
 body.in-iframe {
   padding: 0;
+  height: 100vh;
+  overflow: hidden;
   min-height: 100vh;
-  justify-content: flex-start;
+  justify-content: center;
   background:
     radial-gradient(ellipse at 50% 0%, rgba(164, 124, 55, 0.18) 0%, transparent 58%),
     linear-gradient(180deg, #1a160f 0%, #0f0e12 100%);
 }
 body.in-iframe #game-layout {
   width: 100%;
-  min-height: 100vh;
-  align-items: stretch;
-  justify-content: flex-start;
+  height: 100vh;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
   gap: 0;
 }
 body.in-iframe #center-col {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
 }
 body.in-iframe #board-wrap {
+  width: min(100%, calc(100vh * 600 / 664));
   max-width: 100%;
-  width: 100%;
+  flex: 0 0 auto;
 }
 body.in-iframe #log-panel,
-body.in-iframe #cap-col { display: none; }
+body.in-iframe #cap-col,
+body.in-iframe #info-bar,
+body.in-iframe #controls,
+body.in-iframe #piece-hint { display: none; }
 
 #info-bar {
   margin-top: 6px;
@@ -314,6 +325,27 @@ button:hover { filter: brightness(1.2); }
   .log-item {
     min-height: 44px;
   }
+
+  body.in-iframe #game-layout {
+    height: 100vh;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  body.in-iframe #center-col {
+    height: 100vh;
+    min-height: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  body.in-iframe #board-wrap {
+    width: min(100%, calc(100vh * 600 / 664));
+    max-width: 100%;
+  }
+  body.in-iframe #info-bar,
+  body.in-iframe #controls,
+  body.in-iframe #piece-hint { display: none; }
 }
 </style>
 </head>
@@ -1708,38 +1740,113 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
 
 // 棋子走法提示文本
 const PIECE_HINTS_CLASSIC = {
-  R: '车：横竖滑动，不可越子',
-  H: '马：日字跳，先直后斜，蹩马腿不可走',
-  C: '炮：移动同车；吃子须跳过恰好一枚棋子（炮架）',
-  B: '象：斜走两格，不过河，象眼有子不可走',
-  A: '仕：斜走一格，限九宫内',
-  K: '帅：直走一格，限九宫，不可与对方将对脸',
-  P: '兵：未过河只能前进；过河后可左右横走',
+  R: '车：横竖直走，不能越子；同线遇到第一枚敌子可吃。',
+  H: '马：走日字；马腿格被占住时，对应方向不能跳。',
+  C: '炮：移动像车；吃子必须隔着正好一枚炮架。',
+  B: '相：斜跳两格，不能过河；象眼被占住不能跳。',
+  A: '仕：斜走一格，只能在九宫里活动。',
+  K: '帅：九宫内横竖一步；不能和对方将帅照面。',
+  P: '兵：未过河只能前进；过河后可向前、左、右走一步。',
 };
 const PIECE_HINTS_KEWANG = {
-  R: '觉醒车：可冲撞运载友方棋子，同类可合体',
-  H: '觉醒马：十二方跳，可借己方棋子连续跳跃，无蹩腿限制',
-  C: '觉醒炮：翻过连续炮架远袭，同类可合体',
-  B: '觉醒相：落脚点产生地震波，可过河',
-  A: '觉醒仕：落脚点发射X光波，可出宫',
-  K: '觉醒帅：九宫内八向，吃子成长，可被车送出宫',
-  P: '觉醒兵：四向一步，同类自动合体，可自爆',
+  R: '车觉醒：横竖走；冲到友军前一格会把它推出去，同车可合体。',
+  H: '马觉醒：十二方跳；踩到己方棋子可继续跳，不受蹩腿限制。',
+  C: '炮觉醒：横竖走；可翻过连续炮架，打炮架后的敌子。',
+  B: '相觉醒：斜跳两格，可过河；落点向上下左右打出地震波。',
+  A: '仕觉醒：斜走一格，可出宫；落点向四条斜线打出 X 形光波。',
+  K: '帅觉醒：九宫内八向一步；吃子会成长，也可被车送出宫。',
+  P: '兵觉醒：上下左右一步；同兵自动合体，双击可自爆。',
 };
-function showPieceHint(pieceType) {
-  const hints = _CLASSIC ? PIECE_HINTS_CLASSIC : PIECE_HINTS_KEWANG;
-  const hint = hints[pieceType] || '';
-  const el = document.getElementById('piece-hint');
-  if (el) el.textContent = hint;
+
+function postPieceHint(pieceType, hint) {
   if (_LEVEL_ID && window.self !== window.top) {
     try { window.parent.postMessage({ type: 'piece-selected', pieceType, hint }, '*'); } catch(e) {}
   }
 }
+
+function summarizeLegalMoves(moves) {
+  if (!moves || !moves.length) return '当前没有安全落点，可以改选其他棋子。';
+  const counts = { move: 0, eat: 0, stack: 0, charge: 0, hurt: 0, fatal: 0 };
+  for (const m of moves) {
+    if (m.kind === 'eat') counts.eat++;
+    else if (m.kind === 'stack') counts.stack++;
+    else if (m.kind === 'charge') counts.charge++;
+    else counts.move++;
+    if (m.danger === 'hurt') counts.hurt++;
+    if (m.danger === 'fatal') counts.fatal++;
+  }
+  const parts = [];
+  if (counts.move) parts.push(`可走${counts.move}格`);
+  if (counts.eat) parts.push(`可吃${counts.eat}处`);
+  if (counts.stack) parts.push(`可叠${counts.stack}处`);
+  if (counts.charge) parts.push(`可冲撞${counts.charge}处`);
+  const dangerText = counts.hurt || counts.fatal
+    ? '绿色较稳，黄/红落点会让王暴露。'
+    : '绿色是安全落点。';
+  return `当前${parts.join('，')}。${dangerText}`;
+}
+
+function describeLayerStatus(piece) {
+  if (!piece || piece.layer <= 1) return '';
+  const isPawn = piece.type === TYPE.PAWN;
+  const groups = piece.groups && piece.groups.length > 1
+    ? `，当前为${piece.groups.join('+')}层未合体`
+    : '';
+  return `当前${piece.layer}层${groups}，双击可${isPawn ? '拆分或自爆' : '拆分/合体'}。`;
+}
+
+function describeLayerMenu(piece) {
+  const sectors = getPieceSectors(piece);
+  if (!sectors.length) return '';
+  const names = sectors.map(sector => {
+    if (sector.value === 'merge') return '合：合成一个整体';
+    if (sector.value === 'explode') return '爆：自爆并显示红框范围';
+    return `${sector.label}：带${sector.value}层行动`;
+  });
+  return `双击菜单：${names.join('；')}。`;
+}
+
+function showLayerMenuHint(piece, fallback = '') {
+  const pieceType = piece?.type || null;
+  const base = piece ? (piece.upgraded !== false && !_CLASSIC ? PIECE_HINTS_KEWANG[piece.type] : PIECE_HINTS_CLASSIC[piece.type]) : '';
+  const hint = [base, describeLayerStatus(piece), describeLayerMenu(piece), fallback].filter(Boolean).join(' ');
+  const el = document.getElementById('piece-hint');
+  if (el) el.textContent = hint;
+  postPieceHint(pieceType, hint);
+}
+
+function showPieceHint(pieceOrType, prefix = '') {
+  const piece = typeof pieceOrType === 'object' && pieceOrType ? pieceOrType : null;
+  const pieceType = piece ? piece.type : pieceOrType;
+  const upgraded = piece ? piece.upgraded !== false : !_CLASSIC;
+  const hints = upgraded && !_CLASSIC ? PIECE_HINTS_KEWANG : PIECE_HINTS_CLASSIC;
+  const hint = hints[pieceType] || '';
+  const layerHint = describeLayerStatus(piece);
+  const moveHint = piece ? summarizeLegalMoves(game.legalMoves) : '';
+  const fullHint = [prefix, hint, layerHint, moveHint].filter(Boolean).join(' ');
+  const el = document.getElementById('piece-hint');
+  if (el) el.textContent = fullHint;
+  postPieceHint(pieceType, fullHint);
+}
 function clearPieceHint() {
   const el = document.getElementById('piece-hint');
   if (el) el.textContent = '';
-  if (_LEVEL_ID && window.self !== window.top) {
-    try { window.parent.postMessage({ type: 'piece-selected', pieceType: null, hint: '' }, '*'); } catch(e) {}
-  }
+  postPieceHint(null, '');
+}
+
+function postGameStatus() {
+  if (!_LEVEL_ID || window.self === window.top) return;
+  const ti = document.getElementById('turn-indicator');
+  const mg = document.getElementById('message');
+  try {
+    window.parent.postMessage({
+      type: 'game-status',
+      turn: game.gameOver ? (game.isDraw ? 'draw' : game.winner) : game.turn,
+      turnText: ti?.textContent || '',
+      message: mg?.textContent || '',
+      gameOver: !!game.gameOver,
+    }, '*');
+  } catch(e) {}
 }
 
 // 单击选中棋子：直接以顶组层数进入选目标阶段（不显示自爆）
@@ -1754,7 +1861,7 @@ function selectPiece(col, row) {
   game.specialMode = false;
   game.hoveredMoveIdx = null;
   game.legalMoves = calcLegalMoves(col, row, topGroup, false);
-  showPieceHint(piece.type);
+  showPieceHint(piece);
   render();
 }
 
@@ -1765,6 +1872,8 @@ function confirmLayer(layers) {
   game.phase = 'pickTarget';
   // 自爆已在选层阶段直接执行，pickTarget 只需移动走点
   game.legalMoves = calcLegalMoves(game.selected.col, game.selected.row, layers, false);
+  const piece = game.board[game.selected.row][game.selected.col];
+  if (piece) showPieceHint(piece, `已选择${layers}层行动。`);
   render();
 }
 
@@ -2382,7 +2491,8 @@ function render() {
           highlightIdx = sectors.findIndex(s => s.value === game.chosenLayers);
           if (highlightIdx < 0) highlightIdx = null;
         }
-        drawLayerPicker(cx(col), cy(row), sectors, highlightIdx);
+        const picker = layerPickerCenter(col, row);
+        drawLayerPicker(picker.x, picker.y, sectors, highlightIdx);
       }
     }
   }
@@ -2399,6 +2509,18 @@ function render() {
 // ─────────────────────────────────────────────
 const PICK_R_IN  = R + 8;   // = 35，棋子高亮圈(R+6)外侧
 const PICK_R_OUT = R + 36;  // = 63，环宽 28px
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function layerPickerCenter(col, row) {
+  const margin = PICK_R_OUT + 8;
+  return {
+    x: clampNumber(cx(col), margin, W - margin),
+    y: clampNumber(cy(row), margin, H - margin),
+  };
+}
 
 // 生成棋子双击环的扇区数组：{ label, value }
 // value = 层数(number) 表示拆分（最多N-1层，第N层=单击），value = 'explode' 表示自爆
@@ -2560,6 +2682,7 @@ function updateUI() {
       ti.className = game.winner === RED ? 'red' : 'black';
       mg.textContent = `🎉 ${game.winner === RED ? '红' : '黑'}方获胜！`;
     }
+    postGameStatus();
     return;
   }
   ti.textContent = `${game.turn === RED ? '红' : '黑'}方回合`;
@@ -2567,6 +2690,7 @@ function updateUI() {
   mg.textContent = game.kingDanger === 'fatal' ? '⚠️ 将军！王面临致命威胁'
                  : game.kingDanger === 'hurt'  ? '⚠️ 王面临非致命伤害'
                  : '';
+  postGameStatus();
 }
 
 const _TYPE_CN = { K:'王', R:'车', C:'炮', H:'马', B:'象', A:'士', P:'兵' };
@@ -2760,7 +2884,8 @@ canvas.addEventListener('mousemove', e => {
     const piece = game.board[row][col];
     if (piece) {
       const sectors = getPieceSectors(piece);
-      const hit = hitLayerPicker(px, py, cx(col), cy(row), sectors.length);
+        const picker = layerPickerCenter(col, row);
+        const hit = hitLayerPicker(px, py, picker.x, picker.y, sectors.length);
       if (hit !== game.hoverIdx) { game.hoverIdx = hit; render(); }
       canvas.style.cursor = hit !== null ? 'pointer' : 'default';
     }
@@ -2806,7 +2931,8 @@ canvas.addEventListener('click', e => {
     const piece = game.board[row][col];
     if (piece) {
       const sectors = getPieceSectors(piece);
-      const hit = hitLayerPicker(px, py, cx(col), cy(row), sectors.length);
+        const picker = layerPickerCenter(col, row);
+        const hit = hitLayerPicker(px, py, picker.x, picker.y, sectors.length);
       if (hit !== null) {
         const sector = sectors[hit];
         if (sector.value === 'explode') {
@@ -2831,6 +2957,7 @@ canvas.addEventListener('click', e => {
     game.hoverIdx = null;
     game.specialMode = false;
     game.legalMoves = [];
+    clearPieceHint();
     render();
     return;
   }
@@ -2898,10 +3025,16 @@ canvas.addEventListener('dblclick', e => {
 
   const p = game.board[row][col];
   if (!p || p.owner !== game.turn) return;
-  if (p.type === TYPE.KING) return; // 王无双击特殊操作
+  if (p.type === TYPE.KING) {
+    showPieceHint(p, '帅没有双击菜单，直接单击落子。');
+    return;
+  } // 王无双击特殊操作
 
   const sectors = getPieceSectors(p);
-  if (sectors.length === 0) return; // 无可弹出操作（1层非兵）
+  if (sectors.length === 0) {
+    showPieceHint(p, '当前没有可用的双击操作。');
+    return;
+  } // 无可弹出操作（1层非兵）
 
   // 覆盖两次单击事件留下的状态，统一进入 pickLayer 展示环
   game.selected = { col, row };
@@ -2910,6 +3043,7 @@ canvas.addEventListener('dblclick', e => {
   game.chosenLayers = null;
   game.hoverIdx = null;
   game.legalMoves = [];
+  showLayerMenuHint(p);
   render();
 });
 
@@ -2927,6 +3061,7 @@ canvas.addEventListener('contextmenu', e => {
   game.legalMoves = [];
   game.hoveredMoveIdx = null;
   canvas.style.cursor = 'default';
+  clearPieceHint();
   render();
 });
 
@@ -2942,6 +3077,7 @@ document.addEventListener('keydown', e => {
   game.legalMoves = [];
   game.hoveredMoveIdx = null;
   canvas.style.cursor = 'default';
+  clearPieceHint();
   render();
 });
 
@@ -4175,6 +4311,7 @@ function updateAIUI() {
   const mg = document.getElementById('message');
   if (!mg) return;
   if (aiState.enabled && aiState.thinking) mg.textContent = 'AI思考中...';
+  postGameStatus();
 }
 
 function toggleAI() {
@@ -4197,6 +4334,7 @@ async function triggerAI() {
   aiState.thinking = true;
   updateAIUI();
   document.getElementById('message').textContent = 'AI思考中...';
+  postGameStatus();
   await new Promise(r => setTimeout(r, 50));
 
   const move = AI.bestMove(game.board, game.turn, aiState.timeLimit, game.history);
@@ -4234,8 +4372,8 @@ async function triggerAI() {
 
 // AI toggle removed — controlled via URL param ?ai=1
 
-// 提和按钮
-document.getElementById('btn-draw').addEventListener('click', () => {
+// 提和按钮 / 外层求和命令
+function requestDraw() {
   if (game.gameOver || anim.playing || aiState.thinking) return;
   if (!aiState.enabled) {
     // 人人对战：直接和棋
@@ -4251,6 +4389,7 @@ document.getElementById('btn-draw').addEventListener('click', () => {
   if (aiScore > DRAW_ACCEPT) {
     const mg = document.getElementById('message');
     mg.textContent = 'AI 拒绝和棋请求';
+    postGameStatus();
     setTimeout(() => updateUI(), 2500);
   } else {
     game.gameOver = true; game.isDraw = true; game.winner = null;
@@ -4258,6 +4397,14 @@ document.getElementById('btn-draw').addEventListener('click', () => {
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
   }
+}
+
+document.getElementById('btn-draw').addEventListener('click', requestDraw);
+
+window.addEventListener('message', (e) => {
+  if (!e.data || e.data.type !== 'game-command') return;
+  if (e.data.command === 'restart') restartGame();
+  if (e.data.command === 'draw') requestDraw();
 });
 
 // ─────────────────────────────────────────────
