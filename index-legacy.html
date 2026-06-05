@@ -1299,19 +1299,20 @@ function applyMove(board, srcCol, srcRow, move) {
   const landedPiece = b[dr][dc];
 
   if (landedPiece && landedPiece.owner === piece.owner) {
+    const upgradedMove = piece.upgraded !== false && !_CLASSIC;
     // Bug2+6修复：士/相光波用落地后的实际 layer（叠层后更大，吃子后可能更小）
     // 叠层时不触发波；移动/吃子时触发
-    if (piece.type === TYPE.ADVISOR && kind !== 'stack') {
+    if (upgradedMove && piece.type === TYPE.ADVISOR && kind !== 'stack') {
       advisorWave(dc, dr, landedPiece); // 传落地后的实际 piece
     }
-    if (piece.type === TYPE.BISHOP && kind !== 'stack') {
+    if (upgradedMove && piece.type === TYPE.BISHOP && kind !== 'stack') {
       bishopWave(dc, dr, landedPiece); // 传落地后的实际 piece
     }
 
     // Bug3修复：王主动吃子增长
     // 规则：王成功完整吃掉目标并站在目标点上才增长，固定 +1
     // combatResult 已正确结算存活层数，增长在结算之后额外 +1
-    if (piece.type === TYPE.KING && kind === 'eat') {
+    if (upgradedMove && piece.type === TYPE.KING && kind === 'eat') {
       landedPiece.layer += 1;
       if (landedPiece.groups) landedPiece.groups = [landedPiece.layer]; // 同步 groups
       log.push(`王吃子成长→${landedPiece.layer}层`);
@@ -1718,9 +1719,10 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
 
     // 计算预览区域（红框提示）
     let preview = [];
-    if (piece.type === TYPE.ADVISOR && m.kind !== 'stack') {
+    const upgradedMove = piece.upgraded !== false && !_CLASSIC;
+    if (upgradedMove && piece.type === TYPE.ADVISOR && m.kind !== 'stack') {
       preview = computeAdvisorWaveZone(m.col, m.row, layers);
-    } else if (piece.type === TYPE.BISHOP && m.kind !== 'stack') {
+    } else if (upgradedMove && piece.type === TYPE.BISHOP && m.kind !== 'stack') {
       preview = computeBishopWaveZone(m.col, m.row, layers);
     } else if (piece.type === TYPE.ROOK && m.kind === 'charge') {
       preview = computeChargePushPath(game.board, m.col, m.row, m.dc, m.dr);
@@ -1787,6 +1789,7 @@ function summarizeLegalMoves(moves) {
 }
 
 function describeLayerStatus(piece) {
+  if (_CLASSIC || !piece || piece.upgraded === false) return '';
   if (!piece || piece.layer <= 1) return '';
   const isPawn = piece.type === TYPE.PAWN;
   const groups = piece.groups && piece.groups.length > 1
@@ -1796,6 +1799,7 @@ function describeLayerStatus(piece) {
 }
 
 function describeLayerMenu(piece) {
+  if (_CLASSIC || !piece || piece.upgraded === false) return '';
   const sectors = getPieceSectors(piece);
   if (!sectors.length) return '';
   const names = sectors.map(sector => {
@@ -2180,6 +2184,10 @@ function undoMove() {
 
 function restartGame() {
   if (anim.playing) return;
+  aiState.searchToken += 1;
+  if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
+  if (typeof AI !== 'undefined') AI.abortPonder();
+  aiState.pondering = false;
   game.board = initBoard();
   game.turn = RED;
   game.phase = 'select';
@@ -3099,7 +3107,7 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 //  AI 引擎
 // ─────────────────────────────────────────────
-const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, pondering: false, ponderTimer: null };
+const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, pondering: false, ponderTimer: null, searchToken: 0 };
 
 const AI = (() => {
   // ── 配置 ──
@@ -4247,6 +4255,27 @@ const AI = (() => {
     return best;
   }
 
+  async function bestMoveAsync(board, owner, ms, history, shouldContinue = () => true) {
+    const totalMs = Math.max(80, Math.trunc(Number(ms) || 0));
+    const start = Date.now();
+    const sliceMs = Math.min(160, totalMs);
+    let best = null;
+    ponderAbort = false;
+
+    while (!ponderAbort && shouldContinue() && Date.now() - start < totalMs) {
+      const remaining = totalMs - (Date.now() - start);
+      const move = bestMove(board, owner, Math.max(40, Math.min(sliceMs, remaining)), history);
+      if (move) best = move;
+      if (ponderAbort || !shouldContinue() || Date.now() - start >= totalMs) break;
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    if (!ponderAbort && shouldContinue() && !best) {
+      best = bestMove(board, owner, 80, history);
+    }
+    return ponderAbort || !shouldContinue() ? null : best;
+  }
+
   function clearTT() { tt.fill(null); for (const row of historyTab) row.fill(0); for (const row of counterTab) row.fill(null); }
 
   // 供显示用：带静态搜索（QS）的快速估值，解算吃子链后再返回分数
@@ -4315,7 +4344,7 @@ const AI = (() => {
     }
   }
 
-  return { bestMove, clearTT, evaluate, quickEval, ponder, ponderLoop, abortPonder };
+  return { bestMove, bestMoveAsync, clearTT, evaluate, quickEval, ponder, ponderLoop, abortPonder };
 })();
 
 // ─────────────────────────────────────────────
@@ -4347,12 +4376,20 @@ async function triggerAI() {
   aiState.pondering = false;
 
   aiState.thinking = true;
+  const searchToken = ++aiState.searchToken;
   updateAIUI();
   document.getElementById('message').textContent = 'AI思考中...';
   postGameStatus();
   await new Promise(r => setTimeout(r, 50));
 
-  const move = AI.bestMove(game.board, game.turn, aiState.timeLimit, game.history);
+  const move = await AI.bestMoveAsync(
+    game.board,
+    game.turn,
+    aiState.timeLimit,
+    game.history,
+    () => aiState.thinking && aiState.searchToken === searchToken && aiState.enabled && !game.gameOver
+  );
+  if (aiState.searchToken !== searchToken || !aiState.enabled || game.gameOver) return;
   aiState.thinking = false;
   updateAIUI();
   if (!move || game.gameOver || !aiState.enabled) return;
@@ -4373,13 +4410,13 @@ async function triggerAI() {
         aiState.pondering = false;
         return;
       }
-      AI.ponderLoop(game.board, game.turn, 500, game.history);
+      AI.ponderLoop(game.board, game.turn, 120, game.history);
       if (!aiState.enabled || game.gameOver || game.turn === aiState.side || aiState.thinking) {
         aiState.pondering = false;
         return;
       }
       // 让出主线程一帧后继续下一轮思考
-      aiState.ponderTimer = setTimeout(ponderTick, 10);
+      aiState.ponderTimer = setTimeout(ponderTick, 20);
     };
     aiState.ponderTimer = setTimeout(ponderTick, 200);
   }
@@ -4418,6 +4455,15 @@ document.getElementById('btn-draw').addEventListener('click', requestDraw);
 
 window.addEventListener('message', (e) => {
   if (!e.data || e.data.type !== 'game-command') return;
+  if (e.data.command === 'abort-ai') {
+    aiState.searchToken += 1;
+    if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
+    AI.abortPonder();
+    aiState.thinking = false;
+    aiState.pondering = false;
+    updateAIUI();
+    return;
+  }
   if (e.data.command === 'restart') restartGame();
   if (e.data.command === 'draw') requestDraw();
 });
