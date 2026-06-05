@@ -411,6 +411,7 @@ const _urlParams = new URLSearchParams(location.search);
 const _LEVEL_ID  = parseInt(_urlParams.get('levelId')) || 0;
 const _AI_ON     = _urlParams.get('ai') === '1';
 const _AI_TIME   = parseInt(_urlParams.get('aiTime')) || 500;
+const _AI_STRENGTH = _urlParams.get('aiStrength') || '';
 // 模式：classic（传统）/ mixed（混合：部分棋子升级）/ kw（科王：全升级）
 const _MODE      = _urlParams.get('mode')
   || (_urlParams.get('classic') === '1' ? 'classic' : 'kw');
@@ -1840,6 +1841,11 @@ function clearPieceHint() {
   postPieceHint(null, '');
 }
 
+function getRoundText() {
+  if (game.gameOver) return '对局结束';
+  return `第${Math.floor(game.history.length / 2) + 1}回合`;
+}
+
 function postGameStatus() {
   if (!_LEVEL_ID || window.self === window.top) return;
   const ti = document.getElementById('turn-indicator');
@@ -1849,7 +1855,12 @@ function postGameStatus() {
       type: 'game-status',
       turn: game.gameOver ? (game.isDraw ? 'draw' : game.winner) : game.turn,
       turnText: ti?.textContent || '',
+      roundText: getRoundText(),
       message: mg?.textContent || '',
+      aiEnabled: !!aiState.enabled,
+      aiThinking: !!aiState.thinking,
+      aiTime: aiState.timeLimit,
+      aiStrength: aiState.strength || '',
       gameOver: !!game.gameOver,
     }, '*');
   } catch(e) {}
@@ -2165,6 +2176,7 @@ async function executeMove(move) {
 
 function undoMove() {
   if (anim.playing || !game.history.length) return;
+  abortAIThinking();
   const prev = game.history.pop();
   game.board = prev.board;
   game.turn  = prev.turn;
@@ -2181,7 +2193,32 @@ function undoMove() {
   game.lastMove = prev.lastMove || null;
   game.hoveredMoveIdx = null;
   game.kingDanger = assessKingDanger(game.board, game.turn);
+  if (moveLogSimple.length) moveLogSimple.pop();
+  logUndo();
+  clearPieceHint();
   updateUI(); updateCapturedDisplay(); render();
+  updateScoreDisplay(false);
+  if (_LEVEL_ID) {
+    try { window.parent.postMessage({
+      type: 'game-progress',
+      stats: { ...gameStats },
+      redPct: lastRedPct,
+      advantage: lastAdvantage,
+      capturedRed: game.captured.filter(c => c.owner === RED).map(c => CHARS[RED][c.type]),
+      capturedBlack: game.captured.filter(c => c.owner === BLACK).map(c => CHARS[BLACK][c.type]),
+      moves: moveLogSimple.slice(-12),
+    }, '*'); } catch(e) {}
+  }
+}
+
+function undoCommand() {
+  if (anim.playing || !game.history.length) return;
+  const steps = aiState.enabled && game.turn === RED && game.history.length >= 2 ? 2 : 1;
+  for (let i = 0; i < steps; i++) {
+    if (!game.history.length) break;
+    undoMove();
+  }
+  scheduleAIIfNeeded(300);
 }
 
 function restartGame() {
@@ -3111,7 +3148,7 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 //  AI 引擎
 // ─────────────────────────────────────────────
-const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, pondering: false, ponderTimer: null, searchToken: 0 };
+const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, strength: _AI_STRENGTH, pondering: false, ponderTimer: null, searchToken: 0 };
 
 const AI = (() => {
   // ── 配置 ──
@@ -4362,13 +4399,40 @@ function updateAIUI() {
   postGameStatus();
 }
 
-function toggleAI() {
-  if (aiState.thinking) return;
-  aiState.enabled = !aiState.enabled;
-  updateAIUI();
+function abortAIThinking() {
+  aiState.searchToken += 1;
+  if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
+  AI.abortPonder();
+  aiState.thinking = false;
+  aiState.pondering = false;
+}
+
+function scheduleAIIfNeeded(delay = 300) {
   if (aiState.enabled && !game.gameOver && !anim.playing && game.turn === aiState.side) {
-    setTimeout(triggerAI, 300);
+    setTimeout(triggerAI, delay);
   }
+}
+
+function setAIEnabled(enabled) {
+  if (!enabled) abortAIThinking();
+  aiState.enabled = !!enabled;
+  if (enabled) updateAIUI();
+  else updateUI();
+  scheduleAIIfNeeded(300);
+}
+
+function setAITime(ms, strength) {
+  const restartThinking = aiState.enabled && aiState.thinking;
+  if (restartThinking) abortAIThinking();
+  const nextTime = Math.max(100, Math.trunc(Number(ms) || aiState.timeLimit || 500));
+  aiState.timeLimit = nextTime;
+  aiState.strength = strength || aiState.strength || '';
+  updateAIUI();
+  if (restartThinking) scheduleAIIfNeeded(80);
+}
+
+function toggleAI() {
+  setAIEnabled(!aiState.enabled);
 }
 
 async function triggerAI() {
@@ -4460,16 +4524,20 @@ document.getElementById('btn-draw').addEventListener('click', requestDraw);
 window.addEventListener('message', (e) => {
   if (!e.data || e.data.type !== 'game-command') return;
   if (e.data.command === 'abort-ai') {
-    aiState.searchToken += 1;
-    if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
-    AI.abortPonder();
-    aiState.thinking = false;
-    aiState.pondering = false;
+    abortAIThinking();
     updateAIUI();
     return;
   }
   if (e.data.command === 'restart') restartGame();
   if (e.data.command === 'draw') requestDraw();
+  if (e.data.command === 'undo') undoCommand();
+  if (e.data.command === 'set-ai-time') {
+    setAITime(e.data.aiTime, e.data.aiStrength);
+  }
+  if (e.data.command === 'set-ai') {
+    setAITime(e.data.aiTime, e.data.aiStrength);
+    setAIEnabled(!!e.data.enabled);
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -4498,9 +4566,8 @@ updateScoreDisplay(false);
 
 // URL 参数：自动开启 AI
 if (_AI_ON) {
-  aiState.timeLimit = _AI_TIME;
-  aiState.enabled   = true;
-  updateAIUI();
+  setAITime(_AI_TIME, _AI_STRENGTH);
+  setAIEnabled(true);
   if (!game.gameOver && game.turn === aiState.side) setTimeout(triggerAI, 500);
 }
 // 传统模式：更新标题
