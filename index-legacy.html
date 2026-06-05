@@ -372,6 +372,7 @@ button:hover { filter: brightness(1.2); }
     <div id="controls">
       <button id="btn-restart">重新开始</button>
       <button id="btn-draw">提和</button>
+      <button id="btn-resign">认输</button>
     </div>
     <div id="piece-hint"></div>
   </div>
@@ -1822,16 +1823,16 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
       preview = computeChargePushPath(game.board, m.col, m.row, m.dc, m.dr);
     }
 
-    // 己方王被消灭（且非和棋） → 自杀走法，过滤
-    if (kingCaptured === game.turn) return null;
-    // 传统模式：走完仍被将军/将帅对脸 → 违规走法，过滤
-    if (_CLASSIC && classicKingInCheck(nb, game.turn)) return null;
+    // 己方王被消灭，或传统模式走完仍被将军/将帅对脸：
+    // 不直接禁走，标成红点；玩家确认落子后按认负结算。
+    if (kingCaptured === game.turn) return { ...m, danger: 'fatal', preview, selfFatal: true };
+    if (_CLASSIC && classicKingInCheck(nb, game.turn)) return { ...m, danger: 'fatal', preview, selfFatal: true };
     // 和棋或敌方王被消灭 → 显示为安全（允许选择）
     if (kingCaptured) return { ...m, danger: 'safe', preview };
 
     const danger = assessKingDanger(nb, game.turn);
     return { ...m, danger, preview };
-  }).filter(Boolean); // 移除 null（自杀/对脸走法）
+  });
 }
 
 // 棋子走法提示文本
@@ -1985,7 +1986,7 @@ function confirmLayer(layers) {
   render();
 }
 
-// 判断某方是否有任何不导致己方王被吃的走法（用于停局检测）
+// 判断某方是否还有可点走法（用于停局检测）
 function hasAnyLegalMove(board, owner) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -1995,7 +1996,6 @@ function hasAnyLegalMove(board, owner) {
       for (const m of generateMoves(board, c, r)) {
         const { board: nb, kingCaptured: kc } = applyMove(board, c, r, { srcCol: c, srcRow: r, ...m, layers: topGroup });
         if (kc === owner) continue; // 自杀走法
-        if (_CLASSIC && classicKingInCheck(nb, owner)) continue; // 被将军/将帅对脸违规
         return true;
       }
     }
@@ -2225,6 +2225,17 @@ async function executeMove(move) {
     game.winner   = game.isDraw ? null : enemy(kingCaptured);
     addLog(game.isDraw ? '【双王同归于尽！和棋】'
            : `【${game.winner === RED ? '红' : '黑'}方获胜！】`, true);
+    updateUI(); updateCapturedDisplay(); render();
+    _reportGameEnd();
+    return;
+  }
+
+  if (move.selfFatal) {
+    const loser = piece.owner;
+    game.gameOver = true;
+    game.isDraw   = false;
+    game.winner   = enemy(loser);
+    addLog(`【${loser === RED ? '红' : '黑'}方走入致命威胁，认负】`, true);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
     return;
@@ -4738,7 +4749,28 @@ function requestDraw() {
   }
 }
 
+function resignGame() {
+  if (game.gameOver || anim.playing) return;
+  if (aiState.thinking) abortAIThinking();
+  const loser = aiState.enabled ? enemy(aiState.side) : game.turn;
+  game.phase = 'select';
+  game.selected = null;
+  game.chosenLayers = null;
+  game.hoverIdx = null;
+  game.hoveredMoveIdx = null;
+  game.specialMode = false;
+  game.legalMoves = [];
+  clearPieceHint();
+  game.gameOver = true;
+  game.isDraw = false;
+  game.winner = enemy(loser);
+  addLog(`【${loser === RED ? '红' : '黑'}方认输，${game.winner === RED ? '红' : '黑'}方获胜】`, true);
+  updateUI(); updateCapturedDisplay(); render();
+  _reportGameEnd();
+}
+
 document.getElementById('btn-draw').addEventListener('click', requestDraw);
+document.getElementById('btn-resign').addEventListener('click', resignGame);
 
 window.addEventListener('message', (e) => {
   if (!e.data || e.data.type !== 'game-command') return;
@@ -4749,6 +4781,7 @@ window.addEventListener('message', (e) => {
   }
   if (e.data.command === 'restart') restartGame();
   if (e.data.command === 'draw') requestDraw();
+  if (e.data.command === 'resign') resignGame();
   if (e.data.command === 'undo') undoCommand();
   if (e.data.command === 'set-ai-time') {
     setAITime(e.data.aiTime, e.data.aiStrength);

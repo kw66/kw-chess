@@ -351,6 +351,7 @@
             <button class="game-action-button" type="button" data-game-command="restart">重开</button>
             ${a?'<button class="game-action-button" type="button" data-game-command="undo">悔棋</button>':""}
             ${n||i?'<button class="game-action-button" type="button" data-game-command="draw">求和</button>':""}
+            <button class="game-action-button" type="button" data-game-command="resign">认输</button>
             <button class="game-action-button" type="button" data-game-panel="codex" data-game-codex-mode="${b}">图鉴</button>
           </div>
         </div>
