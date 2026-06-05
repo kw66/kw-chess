@@ -664,6 +664,73 @@ function generateClassicMoves(board, srcCol, srcRow) {
   return moves;
 }
 
+// 传统象棋：判断 owner 方是否正在被将军。
+// 仅用于 classic 模式的合法性过滤，避免搜索和玩家走法进入违规局面。
+function classicKingInCheck(board, owner) {
+  if (kingsAreFacing(board)) return true;
+  const king = findKing(board, owner);
+  if (!king) return true;
+  const { col: kc, row: kr } = king;
+  const opp = enemy(owner);
+
+  // 车/炮直线攻击
+  for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    let c = kc + dc, r = kr + dr, screens = 0;
+    while (inBoard(c, r)) {
+      const p = board[r][c];
+      if (p) {
+        if (p.owner === opp) {
+          if (screens === 0 && p.type === TYPE.ROOK) return true;
+          if (screens === 1 && p.type === TYPE.CANNON) return true;
+        }
+        screens++;
+        if (screens > 1) break;
+      }
+      c += dc; r += dr;
+    }
+  }
+
+  // 马攻击：候选马位置 + 对应马腿
+  for (const [hc, hr, lc, lr] of [
+    [ 2, 1, 1, 1], [ 2,-1, 1,-1], [-2, 1,-1, 1], [-2,-1,-1,-1],
+    [ 1, 2, 1, 1], [-1, 2,-1, 1], [ 1,-2, 1,-1], [-1,-2,-1,-1],
+  ]) {
+    const c = kc + hc, r = kr + hr;
+    if (!inBoard(c, r)) continue;
+    const p = board[r][c];
+    if (p?.owner === opp && p.type === TYPE.HORSE && !board[kr + lr][kc + lc]) return true;
+  }
+
+  // 兵/卒攻击
+  const pawnForward = opp === RED ? -1 : 1;
+  const pr = kr - pawnForward;
+  if (inBoard(kc, pr)) {
+    const p = board[pr][kc];
+    if (p?.owner === opp && p.type === TYPE.PAWN) return true;
+  }
+  for (const pc of [kc - 1, kc + 1]) {
+    if (!inBoard(pc, kr)) continue;
+    const p = board[kr][pc];
+    const crossed = opp === RED ? kr <= 4 : kr >= 5;
+    if (crossed && p?.owner === opp && p.type === TYPE.PAWN) return true;
+  }
+
+  // 士/象理论上很少直接攻击对方王，保留完整边界以支持异常局面。
+  for (const [dc, dr] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+    const ac = kc + dc, ar = kr + dr;
+    const a = inBoard(ac, ar) ? board[ar][ac] : null;
+    if (a?.owner === opp && a.type === TYPE.ADVISOR && inPalace(kc, kr, opp)) return true;
+
+    const bc = kc + dc * 2, br = kr + dr * 2;
+    const eyeC = kc + dc, eyeR = kr + dr;
+    const b = inBoard(bc, br) ? board[br][bc] : null;
+    const targetAllowed = opp === RED ? kr >= 5 : kr <= 4;
+    if (targetAllowed && b?.owner === opp && b.type === TYPE.BISHOP && !board[eyeR][eyeC]) return true;
+  }
+
+  return false;
+}
+
 function generateMoves(board, srcCol, srcRow) {
   const piece = board[srcRow][srcCol];
   if (!piece) return [];
@@ -1202,8 +1269,8 @@ function applyMove(board, srcCol, srcRow, move) {
       if (res.defSurvive === 0) checkKing(landR, landC);
       if (res.atkSurvive > 0) {
         b[landR][landC] = { ...pushed, layer: res.atkSurvive };
-        // 车输送王撞敌吃子：王成长（车是输送工具，王主动出击）
-        if (pushed.type === TYPE.KING) {
+        // 车输送觉醒王撞敌吃子：王成长（车是输送工具，王主动出击）
+        if (pushed.type === TYPE.KING && pushed.upgraded !== false && !_CLASSIC) {
           b[landR][landC].layer += 1;
           if (b[landR][landC].groups) b[landR][landC].groups = [b[landR][landC].layer];
           log.push(`王(车撞)吃${landTarget.type}成长→${b[landR][landC].layer}层`);
@@ -1397,6 +1464,30 @@ function assessKingDanger(board, owner) {
   }
 
   return danger;
+}
+
+function hasSpecialFatalKingThreat(board, owner) {
+  if (_CLASSIC) return false;
+  if (!findKing(board, owner)) return true;
+  const opp = enemy(owner);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p || p.owner !== opp || p.upgraded === false) continue;
+      if (p.type !== TYPE.ADVISOR && p.type !== TYPE.BISHOP && p.type !== TYPE.ROOK && p.type !== TYPE.PAWN) continue;
+      const topGroup = p.groups ? p.groups[0] : p.layer;
+      for (const m of generateMoves(board, c, r)) {
+        const tactical =
+          ((p.type === TYPE.ADVISOR || p.type === TYPE.BISHOP) && m.kind !== 'stack') ||
+          (p.type === TYPE.ROOK && m.kind === 'charge') ||
+          (p.type === TYPE.PAWN && m.kind === 'explode');
+        if (!tactical) continue;
+        const sim = applyMove(board, c, r, { ...m, layers: topGroup });
+        if (sim.kingCaptured === owner || !findKing(sim.board, owner)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────────
@@ -1733,8 +1824,8 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
 
     // 己方王被消灭（且非和棋） → 自杀走法，过滤
     if (kingCaptured === game.turn) return null;
-    // 传统模式：将帅对脸 → 违规走法，过滤
-    if (_CLASSIC && kingsAreFacing(nb)) return null;
+    // 传统模式：走完仍被将军/将帅对脸 → 违规走法，过滤
+    if (_CLASSIC && classicKingInCheck(nb, game.turn)) return null;
     // 和棋或敌方王被消灭 → 显示为安全（允许选择）
     if (kingCaptured) return { ...m, danger: 'safe', preview };
 
@@ -1904,7 +1995,7 @@ function hasAnyLegalMove(board, owner) {
       for (const m of generateMoves(board, c, r)) {
         const { board: nb, kingCaptured: kc } = applyMove(board, c, r, { srcCol: c, srcRow: r, ...m, layers: topGroup });
         if (kc === owner) continue; // 自杀走法
-        if (_CLASSIC && kingsAreFacing(nb)) continue; // 将帅对脸违规
+        if (_CLASSIC && classicKingInCheck(nb, owner)) continue; // 被将军/将帅对脸违规
         return true;
       }
     }
@@ -3237,7 +3328,14 @@ const AI = (() => {
 
   // ── 将军检测（AI内部，扫描直接吃王走法 + 传统模式将帅对脸）──
   function isInCheck(board, owner) {
-    if (_CLASSIC && kingsAreFacing(board)) return true; // 将帅对脸视为被将
+    if (_CLASSIC) return classicKingInCheck(board, owner);
+    // 科王/混合规则下，仕/相范围伤害、兵自爆、车冲撞也可能形成致命威胁。
+    // 搜索剪枝必须把这些局面视作被将军，否则会漏掉唯一防守。
+    if (hasDirectKingAttack(board, owner)) return true;
+    return hasSpecialFatalKingThreat(board, owner);
+  }
+
+  function hasDirectKingAttack(board, owner) {
     const king = findKing(board, owner);
     if (!king) return false;
     const { col: kc, row: kr } = king;
@@ -3820,6 +3918,13 @@ const AI = (() => {
   // ══════════════════════════════════════════════
   //  走法生成
   // ══════════════════════════════════════════════
+  function searchMoveAllowedAfter(boardAfter, owner, kingCaptured) {
+    if (kingCaptured === owner) return false;
+    if (!_CLASSIC) return true;
+    if (kingCaptured === enemy(owner)) return true;
+    return !classicKingInCheck(boardAfter, owner);
+  }
+
   function genAll(board, owner) {
     const moves = [];
     for (let r = 0; r < ROWS; r++)
@@ -3978,7 +4083,7 @@ const AI = (() => {
 
   function quiescence(board, alpha, beta, owner, dl, qd) {
     nodes++;
-    if ((nodes & 4095) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if ((nodes & 511) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
     if (!findKing(board, owner)) return -99999;
     if (!findKing(board, enemy(owner))) return 99999;
 
@@ -4011,8 +4116,8 @@ const AI = (() => {
         }
       }
       const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
       if (kc === enemy(owner)) return 99999;
-      if (kc === owner) continue;
       const v = -quiescence(nb, -beta, -alpha, enemy(owner), dl, qd - 1);
       if (stopped) return 0;
       if (v >= beta) return beta;
@@ -4037,7 +4142,7 @@ const AI = (() => {
 
   function negamax(board, depth, alpha, beta, owner, dl, ply, doNull, extSoFar = 0, prevMv = null) {
     nodes++;
-    if ((nodes & 2047) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if ((nodes & 255) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
     if (!findKing(board, owner)) return -99999 - depth;
     if (!findKing(board, enemy(owner))) return 99999 + depth;
     if (depth <= 0) return quiescence(board, alpha, beta, owner, dl, QS_MAX);
@@ -4106,7 +4211,7 @@ const AI = (() => {
     // ── 当前方是否被将军（LMP/History Pruning 在被将军时跳过）──
     const inCheck = isInCheck(board, owner);
 
-    let best = -Infinity, bestMove = null, flag = TT_UPPER;
+    let best = -Infinity, bestMove = null, flag = TT_UPPER, searchedAny = false;
 
     // ── LMP 阈值表：depth → 最多搜索的安静走法数 ──
     const LMP_LIMITS = [0, 8, 14, 22];
@@ -4126,11 +4231,12 @@ const AI = (() => {
       }
 
       const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      searchedAny = true;
       if (kc === enemy(owner)) {
         ttStore(hash, depth, 99999 + depth, TT_EXACT, m);
         return 99999 + depth;
       }
-      if (kc === owner) continue;
 
       // ── 将军延伸：走法使对方进入将军状态，延伸1层（最多 MAX_EXT 累计）──
       let ext = 0;
@@ -4175,6 +4281,7 @@ const AI = (() => {
       }
     }
 
+    if (!searchedAny) return -99980 - depth;
     if (bestMove) ttStore(hash, depth, best, flag, bestMove);
     return best === -Infinity ? -99999 : best;
   }
@@ -4202,7 +4309,8 @@ const AI = (() => {
     const moves = genAll(board, owner);
     if (!moves.length) return null;
     for (const m of moves) {
-      if (applyMove(board, m.srcCol, m.srcRow, m).kingCaptured === enemy(owner)) return m;
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (searchMoveAllowedAfter(nb, owner, kc) && kc === enemy(owner)) return m;
     }
 
     const ASPIRATION_INIT = 40; // 初始窗口半径（分）
@@ -4228,7 +4336,7 @@ const AI = (() => {
         for (let ri = 0; ri < moves.length; ri++) {
           const m = moves[ri];
           const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
-          if (kc === owner) { depthScores.push({ m, v: -Infinity }); continue; }
+          if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
           if (kc === enemy(owner)) return m;
           if (kc === 'draw') {
             depthScores.push({ m, v: 0, exact: true });
@@ -4288,32 +4396,143 @@ const AI = (() => {
     if (!best && moves.length) {
       // 过滤掉纯自杀走法（'draw'和棋可以接受）
       const safe = moves.filter(m => {
-        const kc = applyMove(board, m.srcCol, m.srcRow, m).kingCaptured;
-        return kc !== owner;
+        const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+        return searchMoveAllowedAfter(nb, owner, kc);
       });
       best = safe.length ? safe[Math.floor(Math.random() * safe.length)] : moves[0];
     }
     return best;
   }
 
+  function pickRootVariety(lastScores, best) {
+    if (!lastScores || lastScores.length === 0) return best;
+    const exactScores = lastScores.filter(s => s.exact).map(s => s.v);
+    if (!exactScores.length) return best;
+    const bestScore = Math.max(...exactScores);
+    const candidates = lastScores.filter(s => s.exact && s.v >= bestScore - ROOT_VARIETY && s.v > -90000);
+    return candidates.length > 1 ? candidates[Math.floor(Math.random() * candidates.length)].m : best;
+  }
+
+  function fallbackRootMove(board, owner, moves) {
+    const safe = moves.filter(m => {
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      return searchMoveAllowedAfter(nb, owner, kc);
+    });
+    return safe.length ? safe[Math.floor(Math.random() * safe.length)] : (moves[0] || null);
+  }
+
+  function searchRootDepth(board, owner, moves, depth, dl, prevScore) {
+    const hash = hashBoard(board, owner);
+    const ttHit = ttProbe(hash, 0, 0, 0);
+    const ttM = ttHit?.move || null;
+    moves.sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null));
+
+    const ASPIRATION_INIT = 40;
+    let aspirDelta = ASPIRATION_INIT;
+    let aspirAlpha = depth >= 4 ? prevScore - aspirDelta : -Infinity;
+    let aspirBeta  = depth >= 4 ? prevScore + aspirDelta :  Infinity;
+    let partial = null;
+
+    for (let retry = 0; retry < 4; retry++) {
+      let alpha = aspirAlpha;
+      let dBest = null;
+      const depthScores = [];
+
+      for (let ri = 0; ri < moves.length; ri++) {
+        if (Date.now() > dl || ponderAbort) { stopped = true; break; }
+        const m = moves[ri];
+        const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+        if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
+        if (kc === enemy(owner)) return { completed: true, best: m, score: 99999 + depth, scores: [{ m, v: 99999 + depth, exact: true }], mate: true };
+        if (kc === 'draw') {
+          depthScores.push({ m, v: 0, exact: true });
+          if (0 > alpha) { alpha = 0; dBest = m; }
+          continue;
+        }
+
+        let v, exact = false;
+        if (ri === 0) {
+          v = -negamax(nb, depth - 1, -aspirBeta, -alpha, enemy(owner), dl, 1, true);
+          exact = true;
+        } else {
+          v = -negamax(nb, depth - 1, -alpha - 1, -alpha, enemy(owner), dl, 1, true);
+          if (!stopped && v > alpha) {
+            v = -negamax(nb, depth - 1, -aspirBeta, -alpha, enemy(owner), dl, 1, true);
+            exact = true;
+          }
+        }
+        if (stopped) break;
+        depthScores.push({ m, v, exact });
+        if (v > alpha) { alpha = v; dBest = m; }
+      }
+
+      if (stopped) {
+        if (dBest) partial = { completed: false, partial: true, best: dBest, score: alpha, scores: depthScores };
+        break;
+      }
+
+      if (depth >= 4 && alpha <= aspirAlpha && retry < 3) {
+        aspirAlpha = Math.max(alpha - aspirDelta, -Infinity);
+        aspirDelta *= 3;
+        continue;
+      }
+      if (depth >= 4 && dBest && depthScores.some(s => s.v > aspirBeta - 1) && retry < 3) {
+        aspirBeta = Math.min(aspirBeta + aspirDelta, Infinity);
+        aspirDelta *= 3;
+        continue;
+      }
+
+      return { completed: true, best: dBest, score: alpha, scores: depthScores };
+    }
+
+    return partial || { completed: false };
+  }
+
   async function bestMoveAsync(board, owner, ms, history, shouldContinue = () => true) {
     const totalMs = Math.max(80, Math.trunc(Number(ms) || 0));
     const start = Date.now();
-    const sliceMs = Math.min(160, totalMs);
+    const sliceMs = Math.min(totalMs, totalMs >= 5500 ? 3200 : totalMs >= 3500 ? 1400 : 800);
     let best = null;
-    ponderAbort = false;
+    let lastScores = null;
+    let prevScore = 0;
+    let depth = 1;
+    nodes = 0; stopped = false; ponderAbort = false;
+    for (let i = 0; i < MAX_PLY; i++) killers[i] = [null, null];
 
-    while (!ponderAbort && shouldContinue() && Date.now() - start < totalMs) {
+    gameHashes.clear();
+    if (history) {
+      for (const entry of history) gameHashes.add(hashBoard(entry.board, entry.turn));
+    }
+    searchPath[0] = hashBoard(board, owner);
+
+    const moves = genAll(board, owner);
+    if (!moves.length) return null;
+    for (const m of moves) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (searchMoveAllowedAfter(nb, owner, kc) && kc === enemy(owner)) return m;
+    }
+
+    while (!ponderAbort && shouldContinue() && Date.now() - start < totalMs && depth <= 20) {
       const remaining = totalMs - (Date.now() - start);
-      const move = bestMove(board, owner, Math.max(40, Math.min(sliceMs, remaining)), history);
-      if (move) best = move;
+      const sliceDeadline = Date.now() + Math.max(40, Math.min(sliceMs, remaining));
+      stopped = false;
+      const result = searchRootDepth(board, owner, moves, depth, sliceDeadline, prevScore);
+      if (result.best) {
+        best = result.best;
+        lastScores = result.scores || lastScores;
+        if (result.completed) prevScore = result.score;
+      }
+      if (result.completed) {
+        console.log(`AI depth${depth}: ${result.score} (${nodes}节点)`);
+        if (result.mate || result.score > 90000) break;
+        depth++;
+      }
       if (ponderAbort || !shouldContinue() || Date.now() - start >= totalMs) break;
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
-    if (!ponderAbort && shouldContinue() && !best) {
-      best = bestMove(board, owner, 80, history);
-    }
+    if (best) best = pickRootVariety(lastScores, best);
+    if (!ponderAbort && shouldContinue() && !best) best = fallbackRootMove(board, owner, moves);
     return ponderAbort || !shouldContinue() ? null : best;
   }
 
