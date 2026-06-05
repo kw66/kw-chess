@@ -452,6 +452,8 @@ const gameStats = {
   pawnExplodeKills: 0,
   rookTransportedStackedPawn: false,
   stackedPawnReachedBottom: false,
+  complete: false,
+  outcome: null,
   win: false,
 };
 function _addToSet(arr, val) { if (!arr.includes(val)) arr.push(val); }
@@ -1368,7 +1370,7 @@ function assessKingDanger(board, owner) {
           continue;
         }
         // ② 士/相落地波可能波及王
-        if ((p.type === TYPE.ADVISOR || p.type === TYPE.BISHOP) && m.kind !== 'stack') {
+        if (!_CLASSIC && p.upgraded !== false && (p.type === TYPE.ADVISOR || p.type === TYPE.BISHOP) && m.kind !== 'stack') {
           needSim.push({ c, r, p, m });
         }
         // ③ 车冲撞可能把己方棋子推撞王
@@ -2006,7 +2008,7 @@ async function executeMove(move) {
       game.board = newBoard; render();
     }
     // ── 士/相动画（滑动 + 波范围闪烁）──
-    else if ((piece.type === TYPE.ADVISOR || piece.type === TYPE.BISHOP) && move.kind !== 'stack') {
+    else if (!_CLASSIC && piece.upgraded !== false && (piece.type === TYPE.ADVISOR || piece.type === TYPE.BISHOP) && move.kind !== 'stack') {
       const slidePiece = { ...piece, layer: moveLayers };
       game.board[srcRow][srcCol] = isSplit
         ? (() => {
@@ -2217,6 +2219,8 @@ function restartGame() {
   gameStats.pawnExplodeKills = 0;
   gameStats.rookTransportedStackedPawn = false;
   gameStats.stackedPawnReachedBottom   = false;
+  gameStats.complete = false;
+  gameStats.outcome = null;
   gameStats.win = false;
   resetRedSurvivalStats();
   moveLogSimple = [];
@@ -4474,6 +4478,8 @@ window.addEventListener('message', (e) => {
 function _reportGameEnd() {
   if (!_LEVEL_ID) return;  // 不在关卡模式下（独立打开）则跳过
   gameStats.win = game.winner === RED;
+  gameStats.complete = true;
+  gameStats.outcome = game.isDraw ? 'draw' : game.winner === RED ? 'win' : 'loss';
   finalizeRedSurvivalStats();
   try {
     window.parent.postMessage({ type: 'game-end', stats: { ...gameStats } }, '*');
