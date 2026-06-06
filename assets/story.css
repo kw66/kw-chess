@@ -56,7 +56,7 @@ button:disabled {
 
 .story-panel {
   width: 100%;
-  padding: clamp(20px, 4vw, 42px);
+  padding: clamp(18px, 3.4vw, 34px);
   border: 1px solid var(--line);
   border-radius: 10px;
   background:
@@ -64,8 +64,16 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+.scene-heading {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+
 .scene-act {
-  margin: 0 0 8px;
+  flex: none;
+  margin: 0;
   color: var(--red);
   font-size: 14px;
   font-weight: 900;
@@ -79,33 +87,33 @@ blockquote {
 
 h1 {
   color: #24180f;
-  font-size: clamp(34px, 7vw, 58px);
-  line-height: 1.05;
+  font-size: clamp(24px, 3.5vw, 34px);
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
 blockquote {
-  margin-top: clamp(16px, 3vw, 24px);
-  padding: 12px 14px;
+  margin-top: clamp(12px, 2.4vw, 18px);
+  padding: 10px 12px;
   border-left: 4px solid var(--red);
   border-radius: 0 8px 8px 0;
   color: #442d1b;
   background: rgba(159, 32, 25, 0.08);
-  font-size: clamp(17px, 3vw, 22px);
+  font-size: clamp(15px, 2.2vw, 18px);
   font-weight: 850;
   line-height: 1.55;
 }
 
 .story-text {
   display: grid;
-  gap: 13px;
-  margin-top: clamp(18px, 3vw, 26px);
+  gap: 10px;
+  margin-top: clamp(14px, 2.4vw, 20px);
 }
 
 .story-text p {
   color: #3b2b1e;
-  font-size: clamp(16px, 2.8vw, 19px);
-  line-height: 1.82;
+  font-size: clamp(14px, 2vw, 16px);
+  line-height: 1.68;
 }
 
 .match-text {
@@ -118,7 +126,7 @@ blockquote {
   display: grid;
   grid-template-columns: 1fr 1.35fr 1fr;
   gap: 10px;
-  margin-top: clamp(20px, 3vw, 30px);
+  margin-top: clamp(16px, 2.6vw, 24px);
 }
 
 .nav-btn {
@@ -156,23 +164,25 @@ blockquote {
   }
 
   .story-panel {
-    padding: 16px 13px;
+    padding: 14px 12px;
   }
 
   h1 {
-    font-size: clamp(32px, 12vw, 48px);
+    font-size: clamp(24px, 7vw, 32px);
   }
 
   blockquote {
-    padding: 11px 12px;
+    padding: 9px 10px;
+    font-size: 15px;
   }
 
   .story-text {
-    gap: 11px;
+    gap: 9px;
   }
 
   .story-text p {
-    line-height: 1.72;
+    font-size: 14px;
+    line-height: 1.62;
   }
 
   .scene-actions {
