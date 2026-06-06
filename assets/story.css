@@ -160,6 +160,33 @@ blockquote {
   line-height: 1.68;
 }
 
+.story-art {
+  position: relative;
+  overflow: hidden;
+  margin: var(--space-5) 0 0;
+  border: 1px solid rgba(91, 56, 27, 0.24);
+  border-radius: 10px;
+  background: rgba(38, 24, 14, 0.12);
+  box-shadow:
+    0 10px 24px rgba(75, 45, 20, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.44);
+}
+
+.story-art img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.story-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 244, 216, 0.32);
+}
+
 .match-text {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);
@@ -536,6 +563,15 @@ blockquote {
   .story-text {
     gap: 9px;
     margin-top: 12px;
+  }
+
+  .story-art {
+    margin-top: 10px;
+    border-radius: 8px;
+  }
+
+  .story-art img {
+    max-height: 150px;
   }
 
   .story-text p {

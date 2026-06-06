@@ -19,6 +19,10 @@ const SCENES = [
     act: '第一幕',
     title: 'AI 时代',
     kind: 'story',
+    art: {
+      src: './assets/story-art/ai-era.webp',
+      alt: '深夜机房里，屏幕上的棋盘被冷光照亮',
+    },
     quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
     body: [
       'AI 出现的时候，最开始没有人把它当成真正的棋手。',
@@ -45,6 +49,10 @@ const SCENES = [
     act: '第二幕',
     title: '第一局',
     kind: 'match',
+    art: {
+      src: './assets/story-art/human-vs-ai.webp',
+      alt: '聚光灯下的人机大战棋桌',
+    },
     matchTitle: '人机大战 1 / 10',
     objective: '坚持 30 回合、吃子 8 枚、或不败，满足任意一项即可推进。',
     resultText: '这一局你输了。可你至少看清了一件事：AI 不会失误，也不会被情绪拖慢。',
@@ -75,6 +83,10 @@ const SCENES = [
     act: '第三幕',
     title: '信念崩塌',
     kind: 'story',
+    art: {
+      src: './assets/story-art/broken-vow.webp',
+      alt: '棋盒被锁进柜中，冠军杯在暗处失去光泽',
+    },
     quote: '过去的输棋，会让你想下一盘。这一次，你开始怀疑棋盘本身。',
     body: [
       '你最怕的不是输。',
@@ -89,16 +101,21 @@ const SCENES = [
     act: '第四幕',
     title: '车魂初醒',
     kind: 'match',
+    art: {
+      src: './assets/story-art/rook-awakening.webp',
+      alt: '雨夜棋盘上，红车浮起金色棋魂',
+    },
     unlock: 'rook',
     matchTitle: '觉醒试炼：车',
     objective: '车觉醒：直线冲撞，撞开挡路棋子，把堵死的路线撞成突破口。',
-    resultText: '红车震动的那一刻，你第一次明白：旧路走不通，就不要再走旧路。',
-    quote: '红车不再只是直来直去。它第一次有了撞开局面的力量。',
+    resultText: '红车震动的那一刻，你第一次明白：旧路走不通，就让棋魂替你撞开旧路。',
+    quote: '木纹深处亮起一线赤金，像沉睡多年的魂魄终于睁眼。',
     body: [
-      '雨夜里，你重新打开棋盒。',
+      '雨夜里，你重新打开棋盒。窗外的雷声很远，像有人在黑暗里敲响另一副棋盘。',
       '你不是为了立刻复仇，也不是为了准备下一场比赛。你只是想确认，自己是否还能听见棋子的声音。',
-      '红车落在掌心里。木纹已经被岁月磨得发亮。',
-      '它忽然震了一下。不是催你向前，而是在提醒你：如果路被堵死，就把路撞开。',
+      '红车落在掌心里。木纹已经被岁月磨得发亮，纹路却忽然像血脉一样一点点亮起。',
+      '棋盘上的横线竖线微微发颤。你听见一声很轻的轮响，像有一辆看不见的战车从旧规则深处驶来。',
+      '它不是催你向前，而是在提醒你：如果路被堵死，就让它撞开。',
     ],
   },
   {
@@ -109,13 +126,14 @@ const SCENES = [
     unlock: 'horse',
     matchTitle: '觉醒试炼：马',
     objective: '马觉醒：不再被蹩马腿束缚，吃子后可以继续连踩。',
-    resultText: '马的第二步落下时，你看见 AI 的评估线第一次迟疑。',
-    quote: '一步之后还有一步，旧规则追不上它。',
+    resultText: '马的第二步落下时，你看见 AI 的评估线第一次迟疑。它能计算落点，却计算不了那一瞬间的腾空。',
+    quote: '马影从棋盘上跃起，像踏过风，又像踏过旧规则的影子。',
     body: [
       '车魂之后，你开始反复做一个梦。',
-      '梦里有一匹马从九宫外跃起。第一步越过阻挡，第二步落到 AI 没算到的位置。',
-      '醒来后，你把马放在棋盘中央。它不再等待一条干净的马腿。',
-      '它要自己开路。',
+      '梦里有一匹马从九宫外跃起。它的蹄下没有格线，只有一圈圈被踏碎的光。',
+      '第一步越过阻挡，第二步落到 AI 没算到的位置。梦醒时，你耳边还残着风声。',
+      '你把马放在棋盘中央。它不再等待一条干净的马腿，棋盘上所有阻挡都像临时结成的雾。',
+      '它要自己开路，也要把下一步从命运里踏出来。',
     ],
   },
   {
@@ -126,12 +144,12 @@ const SCENES = [
     unlock: 'cannon',
     matchTitle: '觉醒试炼：炮',
     objective: '炮觉醒：可以从更远处施压，不再只等一个合适的炮架。',
-    resultText: '炮声越过半盘棋。看似安全的后方，忽然不再安全。',
-    quote: '真正可怕的不是炮在眼前，而是它忽然从很远的地方抵达。',
+    resultText: '炮声越过半盘棋。看似安全的后方，被一束从远处落下的火光照亮。',
+    quote: '炮魂醒来时，棋盘深处响起一声闷雷。',
     body: [
       '第三枚棋子，你选了炮。',
       '你曾经以为炮最懂等待：等炮架，等对手失误，等一条线被清出来。',
-      '但棋魂醒来之后，炮不再只是等待。',
+      '但棋魂醒来之后，炮不再只是等待。棋盘上的棋子一枚枚浮出淡淡的影，像为它临时搭起通往远方的桥。',
       '它让威胁更早出现，也让 AI 以为安全的后方突然暴露在火力之下。',
     ],
   },
@@ -143,13 +161,13 @@ const SCENES = [
     unlock: 'pawn',
     matchTitle: '觉醒试炼：兵',
     objective: '兵觉醒：叠层推进，自爆换空间，让最小的棋子改变局势。',
-    resultText: '一枚兵炸开之后，棋盘安静了很久。你终于看见，最小的棋子也能主动改变局面。',
-    quote: '过河不是终点。兵也可以用自己的方式决定战场。',
+    resultText: '一枚兵炸开之后，棋盘安静了很久。你终于看见，最小的棋子也能把命运炸出缺口。',
+    quote: '兵魂不是王冠，而是一点不肯熄灭的火。',
     body: [
       '第四次觉醒来得最慢。',
       '你盯着兵看了很久。它太小了，小到过去所有棋谱都把它写成消耗品。',
       '可正因为它小，它最懂什么叫不能后退。',
-      '当兵魂醒来，它没有变成王者。它只是往前一步，然后把自己点燃。',
+      '当兵魂醒来，它没有变成王者。它只是往前一步，层层微光在棋身上叠起，然后把自己点燃。',
     ],
   },
   {
@@ -160,13 +178,13 @@ const SCENES = [
     unlock: 'advisor',
     matchTitle: '觉醒试炼：仕',
     objective: '仕觉醒：守护不只在九宫内，斜线光波能切开贴身威胁。',
-    resultText: '仕没有离开守护的位置，却让整个九宫都亮了起来。',
-    quote: '守护不只是挡在王前，也可以提前清掉威胁。',
+    resultText: '仕没有离开守护的位置，却让整个九宫像阵法一样亮了起来。',
+    quote: '守护不只是挡在王前，也可以把黑暗切开。',
     body: [
       '第五枚棋魂醒在九宫里。',
       '你一直以为仕的命运就是守在王旁边，斜走一步，再斜走一步。',
       '直到 AI 把杀招压到宫门口。',
-      '仕向斜线落下。光波沿着斜线展开，把贴近九宫的威胁直接切开。',
+      '仕向斜线落下。九宫线像被无形的手重新描过，四道斜光从落点亮起，把贴近宫门的威胁直接切开。',
     ],
   },
   {
@@ -177,13 +195,13 @@ const SCENES = [
     unlock: 'bishop',
     matchTitle: '觉醒试炼：相',
     objective: '相觉醒：跨河震荡，打破“不能过河”的旧命令。',
-    resultText: '相越过河界时，你知道一条最古老的限制被改写了。',
-    quote: '不能过河，只是旧棋盘留下的边界。',
+    resultText: '相越过河界时，你知道一条最古老的限制被震碎了。',
+    quote: '不能过河，只是旧棋盘留下的边界；棋魂醒来时，河也会让路。',
     body: [
       '第六枚棋魂最沉默。',
       '相站在河边，过去的规则把它挡在自己半场。',
       '你问它：你真的不能过河吗？',
-      '棋子没有回答。它只是向前落下，越过河界，把震荡扩散到更远的格子。',
+      '棋子没有回答。它只是向前落下。河界在那一刻泛起细密裂纹，十字形的震荡从落点扩散到更远的格子。',
     ],
   },
   {
@@ -194,11 +212,11 @@ const SCENES = [
     unlock: 'king',
     matchTitle: '觉醒试炼：王',
     objective: '帅觉醒：王不再只是被保护者，也能主动吃子成长。',
-    resultText: '你终于明白，真正的王不是永远不动，而是在必须向前时亲自落子。',
-    quote: '王第一次离开九宫时，你知道底线也可以变成力量。',
+    resultText: '你终于明白，真正的王不是永远不动，而是在必须向前时让整座九宫随自己起身。',
+    quote: '帅魂醒来时，九宫不再是牢笼，而像一顶缓缓展开的冠。',
     body: [
       '六枚棋魂醒来后，你以为自己已经听懂了棋盘。',
-      '直到帅在九宫里轻轻震了一下。',
+      '直到帅在九宫里轻轻震了一下。宫线像水面一样荡开，所有棋子都在那一瞬间低低共鸣。',
       '你迟疑了很久。王是最后的底线，也是所有棋子守护的理由。',
       '可若王永远只站在别人身后，新的棋盘仍然只是旧棋盘的影子。',
       '于是帅向前一步。不是逃，不是躲，是亲征。',
@@ -209,17 +227,21 @@ const SCENES = [
     act: '第六幕',
     title: '自爆列车',
     kind: 'match',
+    art: {
+      src: './assets/story-art/soul-combo.webp',
+      alt: '多枚觉醒棋魂在棋盘上连成战阵',
+    },
     unlock: 'combo',
     matchTitle: '觉醒试炼：组合技',
     objective: '组合技觉醒：车的冲撞和兵的自爆连在一起，形成真正的新规则。',
-    resultText: '这不再是一枚棋子的单独能力，而是一套新规则开始成形。',
-    quote: '当不同能力连在一起，你知道自己不只是在变强，而是在创造棋。',
+    resultText: '这不再是一枚棋子的单独能力，而是一座由棋魂连成的新棋盘。',
+    quote: '当不同魂光连在一起，你知道自己不只是在变强，而是在创造棋。',
     body: [
       '单独的能力已经不够。',
       'AI 仍然强大。它适应车，适应马，适应炮，也在适应每一次新的觉醒。',
-      '你开始把棋魂连在一起。',
+      '你开始把棋魂连在一起。红车的轮声、兵魂的火、炮魂的雷、马影的风，在棋盘上交错成一张新的阵图。',
       '车推动兵，兵叠层，前线爆开，炮线接上，马从残阵里连踩而出。',
-      '那一刻，棋盘不再只是多了几条特殊规则。每一种能力都开始影响下一步选择。',
+      '那一刻，棋盘不再只是多了几条特殊规则。每一种能力都开始呼应下一种能力，像一场终于成形的法阵。',
     ],
   },
   {
@@ -227,6 +249,10 @@ const SCENES = [
     act: '终幕',
     title: '重回赛场',
     kind: 'story',
+    art: {
+      src: './assets/story-art/final-board.webp',
+      alt: '终局赛场上，新棋盘在灯光下展开',
+    },
     quote: '这一次，AI 必须走进你创造的新棋盘。',
     body: [
       '你重新站到聚光灯下时，所有人都看见你变了。',
@@ -452,10 +478,20 @@ function renderStoryScene(scene) {
     <div class="story-ticker" aria-label="剧情短句">
       <span>${scene.quote}</span>
     </div>
+    ${renderStoryArt(scene)}
     <div class="story-text">
       ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
     </div>
     ${scene.kind === 'match' ? renderMatchText(scene) : ''}
+  `;
+}
+
+function renderStoryArt(scene) {
+  if (!scene.art) return '';
+  return `
+    <figure class="story-art" hidden>
+      <img src="${scene.art.src}" alt="${scene.art.alt}" loading="lazy" decoding="async">
+    </figure>
   `;
 }
 
@@ -622,6 +658,21 @@ function bindEvents() {
     button.addEventListener('click', () => {
       postGameCommand(button.dataset.gameCommand);
     });
+  });
+  bindStoryArt();
+}
+
+function bindStoryArt() {
+  app.querySelectorAll('.story-art img').forEach((image) => {
+    const figure = image.closest('.story-art');
+    if (!figure) return;
+    image.addEventListener('load', () => {
+      figure.hidden = false;
+    });
+    image.addEventListener('error', () => {
+      figure.hidden = true;
+    });
+    if (image.complete && image.naturalWidth > 0) figure.hidden = false;
   });
 }
 
