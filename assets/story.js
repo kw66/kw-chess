@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'kw_chess_story_progress_v2';
+const STORAGE_KEY = 'kw_chess_story_progress_v3';
 
 const SCENES = [
   {
@@ -17,7 +17,7 @@ const SCENES = [
   {
     id: 'ai-arrives',
     act: '第一幕',
-    title: 'AI 入局',
+    title: 'AI 时代',
     kind: 'story',
     quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
     body: [
@@ -287,6 +287,7 @@ const SCENES = [
 
 const app = document.querySelector('#app');
 const state = loadState();
+let messageListenerBound = false;
 
 function loadState() {
   try {
@@ -298,9 +299,11 @@ function loadState() {
       maxScene: clamp(maxScene, 0, SCENES.length - 1),
       unlocked: Array.isArray(saved.unlocked) ? saved.unlocked : [],
       completedMatches: Array.isArray(saved.completedMatches) ? saved.completedMatches : [],
+      activeMatch: typeof saved.activeMatch === 'string' ? saved.activeMatch : null,
+      matchResults: saved.matchResults && typeof saved.matchResults === 'object' ? saved.matchResults : {},
     };
   } catch {
-    return { currentScene: 0, maxScene: 0, unlocked: [], completedMatches: [] };
+    return { currentScene: 0, maxScene: 0, unlocked: [], completedMatches: [], activeMatch: null, matchResults: {} };
   }
 }
 
@@ -312,6 +315,8 @@ function saveState() {
       maxScene: state.maxScene,
       unlocked: state.unlocked,
       completedMatches: state.completedMatches,
+      activeMatch: state.activeMatch,
+      matchResults: state.matchResults,
     }),
   );
 }
@@ -320,14 +325,24 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function isCurrentMatchActive(scene) {
+  return scene.kind === 'match' && state.activeMatch === scene.id;
+}
+
+function isMatchCompleted(scene) {
+  return scene.kind === 'match' && state.completedMatches.includes(scene.id);
+}
+
 function completeCurrentScene() {
   const scene = SCENES[state.currentScene];
+  if (scene.kind === 'match' && !isMatchCompleted(scene)) {
+    startMatch(scene);
+    return;
+  }
   if (scene.unlock && !state.unlocked.includes(scene.unlock)) {
     state.unlocked.push(scene.unlock);
   }
-  if (scene.kind === 'match' && !state.completedMatches.includes(scene.id)) {
-    state.completedMatches.push(scene.id);
-  }
+  if (scene.kind === 'match') state.activeMatch = null;
   if (state.currentScene < SCENES.length - 1) {
     state.currentScene += 1;
     state.maxScene = Math.max(state.maxScene, state.currentScene);
@@ -338,33 +353,37 @@ function completeCurrentScene() {
 }
 
 function goScene(index) {
+  if (state.activeMatch) postGameCommand('abort-ai');
   state.currentScene = clamp(index, 0, state.maxScene);
+  state.activeMatch = null;
   saveState();
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function startMatch(scene) {
+  state.activeMatch = scene.id;
+  saveState();
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function closeMatch() {
+  state.activeMatch = null;
+  postGameCommand('abort-ai');
+  saveState();
+  render();
+}
+
 function render() {
   const scene = SCENES[state.currentScene];
+  const activeMatch = isCurrentMatchActive(scene);
   app.innerHTML = `
     <main class="shell">
       ${renderMobileStoryTrack()}
-      <article class="story-panel">
+      <article class="story-panel${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
-          <div class="desktop-heading">
-            <div class="scene-heading">
-              <p class="scene-act">${scene.act}</p>
-              <h1>${scene.title}</h1>
-            </div>
-            <blockquote>${scene.quote}</blockquote>
-          </div>
-          <div class="story-ticker" aria-label="剧情短句">
-            <span>${scene.quote}</span>
-          </div>
-          <div class="story-text">
-            ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
-          </div>
-          ${scene.kind === 'match' ? renderMatchText(scene) : ''}
+          ${activeMatch ? renderEmbeddedMatch(scene) : renderStoryScene(scene)}
         </div>
       </article>
       <div class="scene-actions">
@@ -372,7 +391,7 @@ function render() {
         ${
           scene.kind === 'ending'
             ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
-            : `<button type="button" class="nav-btn primary" data-action="complete">${scene.kind === 'match' ? '完成本局' : '继续'}</button>`
+            : `<button type="button" class="nav-btn primary" data-action="complete" ${activeMatch ? 'disabled' : ''}>${activeMatch ? '对局中' : getPrimaryActionLabel(scene)}</button>`
         }
         <button type="button" class="nav-btn secondary" data-action="next" ${
           state.currentScene < state.maxScene && state.currentScene < SCENES.length - 1 ? '' : 'disabled'
@@ -421,6 +440,25 @@ function renderTrackItem(scene, index) {
   `;
 }
 
+function renderStoryScene(scene) {
+  return `
+    <div class="desktop-heading">
+      <div class="scene-heading">
+        <p class="scene-act">${scene.act}</p>
+        <h1>${scene.title}</h1>
+      </div>
+      <blockquote>${scene.quote}</blockquote>
+    </div>
+    <div class="story-ticker" aria-label="剧情短句">
+      <span>${scene.quote}</span>
+    </div>
+    <div class="story-text">
+      ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
+    </div>
+    ${scene.kind === 'match' ? renderMatchText(scene) : ''}
+  `;
+}
+
 function decorateParagraph(paragraph, index) {
   const marks = ['♟️', '🔥', '⚔️', '✨'];
   if (index === 0) return paragraph;
@@ -429,16 +467,139 @@ function decorateParagraph(paragraph, index) {
 }
 
 function renderMatchText(scene) {
-  const completed = state.completedMatches.includes(scene.id);
+  const completed = isMatchCompleted(scene);
+  const retryText = getRetryText(scene);
   return `
     <div class="story-text match-text">
       <p>${scene.matchTitle}：${scene.objective}</p>
       ${completed ? `<p>${scene.resultText}</p>` : ''}
+      ${!completed && retryText ? `<p class="retry-text">${retryText}</p>` : ''}
     </div>
   `;
 }
 
+function getPrimaryActionLabel(scene) {
+  if (scene.kind !== 'match') return '继续';
+  return isMatchCompleted(scene) ? '继续' : '开始对局';
+}
+
+function renderEmbeddedMatch(scene) {
+  return `
+    <div class="story-game-shell">
+      <iframe
+        id="story-game-frame"
+        class="story-game-frame"
+        src="${buildGameSrc(scene)}"
+        title="${scene.matchTitle}"
+        allow="fullscreen"
+      ></iframe>
+      <div class="story-game-actions">
+        <button type="button" class="nav-btn secondary compact" data-game-command="restart">重开</button>
+        <button type="button" class="nav-btn secondary compact" data-game-command="resign">认输</button>
+        <button type="button" class="nav-btn secondary compact" data-action="exit-match">返回剧情</button>
+      </div>
+    </div>
+  `;
+}
+
+function buildGameSrc(scene) {
+  const params = new URLSearchParams();
+  const config = getMatchConfig(scene.id);
+  params.set('levelId', String(config.levelId));
+  params.set('ai', '1');
+  params.set('aiTime', String(config.aiTime || 4000));
+  params.set('aiStrength', config.aiStrength || 'story');
+  params.set('mode', config.mode);
+  if (config.mode === 'classic') params.set('classic', '1');
+  if (config.playerUpgrades && config.playerUpgrades.length) params.set('pu', config.playerUpgrades.join(','));
+  if (config.aiUpgrades && config.aiUpgrades.length) params.set('au', config.aiUpgrades.join(','));
+  return `./index-legacy.html?${params.toString()}`;
+}
+
+function getMatchConfig(sceneId) {
+  const all = ['rook', 'cannon', 'horse', 'bishop', 'advisor', 'pawn', 'king'];
+  const trial = (levelId, piece) => ({
+    levelId,
+    mode: 'mixed',
+    aiTime: 4000,
+    aiStrength: 'story',
+    playerUpgrades: [piece],
+    aiUpgrades: [],
+  });
+  const configs = {
+    'match-one': { levelId: 101, mode: 'classic', aiTime: 4000, aiStrength: 'story', playerUpgrades: [], aiUpgrades: [] },
+    rook: trial(102, 'rook'),
+    horse: trial(103, 'horse'),
+    cannon: trial(104, 'cannon'),
+    pawn: trial(105, 'pawn'),
+    advisor: trial(106, 'advisor'),
+    bishop: trial(107, 'bishop'),
+    king: { levelId: 108, mode: 'mixed', aiTime: 4000, aiStrength: 'story', playerUpgrades: ['rook', 'king'], aiUpgrades: [] },
+    combo: { levelId: 109, mode: 'mixed', aiTime: 4000, aiStrength: 'story', playerUpgrades: ['rook', 'pawn'], aiUpgrades: [] },
+    'final-one': { levelId: 110, mode: 'mixed', aiTime: 4000, aiStrength: 'story', playerUpgrades: all, aiUpgrades: [] },
+    'final-two': { levelId: 111, mode: 'mixed', aiTime: 4000, aiStrength: 'story', playerUpgrades: all, aiUpgrades: ['rook', 'horse', 'pawn'] },
+  };
+  return configs[sceneId] || configs['match-one'];
+}
+
+function postGameCommand(command, payload = {}) {
+  const frame = document.querySelector('#story-game-frame');
+  if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) return;
+  frame.contentWindow.postMessage({ type: 'game-command', command, ...payload }, '*');
+}
+
+function completeMatchFromGame(scene, stats) {
+  state.activeMatch = null;
+  state.matchResults[scene.id] = {
+    outcome: stats?.outcome || 'unknown',
+    win: !!stats?.win,
+    totalMoves: Math.max(0, Math.trunc(Number(stats?.totalMoves) || 0)),
+    totalKills: Object.values(stats?.redKillsByType || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0),
+  };
+  if (!matchGoalReached(scene, stats)) {
+    saveState();
+    render();
+    return;
+  }
+  if (!state.completedMatches.includes(scene.id)) state.completedMatches.push(scene.id);
+  if (scene.unlock && !state.unlocked.includes(scene.unlock)) state.unlocked.push(scene.unlock);
+  saveState();
+  render();
+}
+
+function matchGoalReached(scene, stats) {
+  if (scene.id === 'match-one') {
+    const kills = Object.values(stats?.redKillsByType || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
+    return Math.max(0, Math.trunc(Number(stats?.totalMoves) || 0)) >= 30 || kills >= 8 || stats?.win || stats?.outcome === 'draw';
+  }
+  if (scene.id === 'final-one' || scene.id === 'final-two') return !!stats?.win;
+  return !!stats?.complete;
+}
+
+function getRetryText(scene) {
+  if (isMatchCompleted(scene)) return '';
+  const result = state.matchResults[scene.id];
+  if (!result) return '';
+  if (scene.id === 'match-one') return '这一局还没撑到转折点，再试一次。';
+  if (scene.id === 'final-one' || scene.id === 'final-two') return '这一局必须获胜，再来一次。';
+  return '这次试炼没有完成，再来一次。';
+}
+
+function handleGameMessage(event) {
+  if (!event.data || event.data.type !== 'game-end') return;
+  const scene = SCENES[state.currentScene];
+  if (!scene || scene.kind !== 'match' || state.activeMatch !== scene.id) return;
+  completeMatchFromGame(scene, event.data.stats || {});
+}
+
+function bindGlobalMessageListener() {
+  if (messageListenerBound) return;
+  window.addEventListener('message', handleGameMessage);
+  messageListenerBound = true;
+}
+
 function bindEvents() {
+  bindGlobalMessageListener();
   app.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const action = button.dataset.action;
@@ -446,12 +607,20 @@ function bindEvents() {
       if (action === 'prev') goScene(state.currentScene - 1);
       if (action === 'next') goScene(state.currentScene + 1);
       if (action === 'track') goScene(Number(button.dataset.index));
+      if (action === 'exit-match') closeMatch();
       if (action === 'restart') {
+        if (state.activeMatch) postGameCommand('abort-ai');
         state.currentScene = 0;
+        state.activeMatch = null;
         saveState();
         render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+    });
+  });
+  app.querySelectorAll('[data-game-command]').forEach((button) => {
+    button.addEventListener('click', () => {
+      postGameCommand(button.dataset.gameCommand);
     });
   });
 }

@@ -168,6 +168,33 @@ blockquote {
   background: rgba(255, 249, 231, 0.48);
 }
 
+.story-game-shell {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: var(--space-3);
+  min-height: min(72vh, 720px);
+}
+
+.story-game-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 600 / 664;
+  min-height: 0;
+  border: 1px solid rgba(78, 46, 22, 0.42);
+  border-radius: 10px;
+  background: #14121d;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 240, 202, 0.18),
+    0 12px 28px rgba(56, 33, 15, 0.2);
+}
+
+.story-game-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
 .scene-actions {
   position: relative;
   z-index: 1;
@@ -197,6 +224,12 @@ blockquote {
     transform 120ms ease,
     box-shadow 120ms ease,
     filter 120ms ease;
+}
+
+.nav-btn.compact {
+  min-height: 42px;
+  padding: 8px 10px 9px;
+  font-size: 14px;
 }
 
 .nav-btn.primary {
@@ -420,6 +453,35 @@ blockquote {
     scrollbar-color: rgba(124, 75, 35, 0.38) transparent;
   }
 
+  .story-panel.is-playing {
+    padding: 8px;
+  }
+
+  .story-panel.is-playing .story-content {
+    display: grid;
+    height: 100%;
+    padding-right: 0;
+    overflow: hidden;
+  }
+
+  .story-game-shell {
+    align-content: start;
+    gap: 7px;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .story-game-frame {
+    min-height: 0;
+    height: auto;
+    max-height: 100%;
+    border-radius: 8px;
+  }
+
+  .story-game-actions {
+    gap: 7px;
+  }
+
   .desktop-heading {
     display: none;
   }
@@ -500,6 +562,12 @@ blockquote {
     min-height: 50px;
     padding: 9px 6px 10px;
     font-size: 15px;
+  }
+
+  .nav-btn.compact {
+    min-height: 38px;
+    padding: 7px 5px 8px;
+    font-size: 13px;
   }
 }
 
