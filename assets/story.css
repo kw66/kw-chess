@@ -52,6 +52,11 @@ button:disabled {
   opacity: 0.48;
 }
 
+.mobile-story-track,
+.story-ticker {
+  display: none;
+}
+
 .shell {
   display: grid;
   place-items: center;
@@ -222,20 +227,189 @@ blockquote {
 }
 
 @media (max-width: 560px) {
+  html,
+  body {
+    min-height: 100%;
+    overflow: hidden;
+  }
+
   .shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px;
     width: min(100% - 14px, 430px);
-    align-items: start;
+    min-height: 100svh;
+    height: 100svh;
+    place-items: stretch;
     padding-top: max(10px, env(safe-area-inset-top));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 
-  .story-panel {
+  .mobile-story-track {
+    position: relative;
+    z-index: 2;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    gap: var(--space-3);
-    height: calc(100svh - max(18px, env(safe-area-inset-top)) - max(10px, env(safe-area-inset-bottom)));
-    padding: 14px 12px 12px;
+    gap: 5px;
+    padding: 8px 10px 7px;
+    border: 1px solid rgba(91, 56, 27, 0.24);
     border-radius: 10px;
+    background:
+      linear-gradient(180deg, rgba(255, 248, 229, 0.98), rgba(241, 218, 178, 0.95));
+    box-shadow:
+      0 5px 0 rgba(91, 55, 26, 0.22),
+      0 14px 28px rgba(83, 50, 22, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    overflow: hidden;
+  }
+
+  .mobile-track-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .mobile-count {
+    margin: 0;
+    color: var(--red);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+
+  .mobile-track-title h2 {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 7px;
+    margin: 0;
+    color: #24180f;
+    font-size: 23px;
+    line-height: 1.08;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  .mobile-track-title h2 span {
+    flex: none;
+    color: var(--red);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .mobile-count {
+    align-self: center;
+    padding: 5px 8px;
+    border: 1px solid rgba(116, 70, 31, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 246, 222, 0.78);
+    color: #6a3d20;
+    white-space: nowrap;
+  }
+
+  .track-scroll {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 5px 2px 0;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .track-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .track-scroll::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 16px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(159, 32, 25, 0.26), rgba(180, 123, 35, 0.42));
+    pointer-events: none;
+  }
+
+  .track-item {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    flex: 0 0 54px;
+    min-width: 54px;
+    padding: 0;
+    border: 0;
+    color: #6d4c32;
+    background: transparent;
+    font: inherit;
+    scroll-snap-align: center;
+  }
+
+  .track-dot {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(116, 70, 31, 0.46);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.92), transparent 35%),
+      linear-gradient(180deg, #f7dfaa, #c99642);
+    box-shadow: 0 2px 0 rgba(77, 46, 22, 0.28);
+  }
+
+  .track-label {
+    width: 100%;
+    overflow: hidden;
+    color: #68482f;
+    font-size: 11px;
+    font-weight: 850;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .track-item.current .track-dot {
+    border-color: rgba(159, 32, 25, 0.78);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.96), transparent 34%),
+      linear-gradient(180deg, #ffdf73, #c93622);
+    box-shadow:
+      0 0 0 4px rgba(159, 32, 25, 0.11),
+      0 3px 0 rgba(77, 46, 22, 0.28);
+  }
+
+  .track-item.current .track-label {
+    color: var(--red-deep);
+  }
+
+  .track-item.locked {
+    opacity: 1;
+  }
+
+  .track-item.locked .track-dot {
+    border-color: rgba(116, 70, 31, 0.18);
+    background: linear-gradient(180deg, rgba(240, 220, 183, 0.74), rgba(198, 170, 126, 0.64));
+    box-shadow: none;
+  }
+
+  .track-item.locked .track-label {
+    color: rgba(92, 63, 42, 0.55);
+  }
+
+  .story-panel {
+    display: block;
+    min-height: 0;
+    height: auto;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .story-panel::before {
+    inset: 7px;
   }
 
   .story-content {
@@ -244,6 +418,48 @@ blockquote {
     padding-right: 3px;
     scrollbar-width: thin;
     scrollbar-color: rgba(124, 75, 35, 0.38) transparent;
+  }
+
+  .desktop-heading {
+    display: none;
+  }
+
+  .story-ticker {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 9px 10px;
+    border: 1px solid rgba(159, 32, 25, 0.12);
+    border-left: 4px solid var(--red);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(255, 240, 213, 0.92), rgba(239, 211, 169, 0.74));
+    color: #3e2a1b;
+    font-size: 14px;
+    font-weight: 850;
+    line-height: 1.45;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+
+  .story-ticker::-webkit-scrollbar {
+    display: none;
+  }
+
+  .story-ticker span {
+    display: inline-block;
+    min-width: max-content;
+    padding-right: 24px;
+    animation: ticker-nudge 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes ticker-nudge {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(-18px);
+    }
   }
 
   h1 {
@@ -257,7 +473,7 @@ blockquote {
 
   .story-text {
     gap: 9px;
-    margin-top: 14px;
+    margin-top: 12px;
   }
 
   .story-text p {
@@ -265,16 +481,30 @@ blockquote {
     line-height: 1.62;
   }
 
+  .story-mark {
+    display: inline-block;
+    width: 1.55em;
+    transform: translateY(0.03em);
+  }
+
   .scene-actions {
+    position: relative;
+    z-index: 2;
     grid-template-columns: 0.85fr 1.2fr 0.85fr;
     gap: 7px;
     margin-top: 0;
-    padding-top: 10px;
+    padding: 9px 0 0;
   }
 
   .nav-btn {
-    min-height: 48px;
+    min-height: 50px;
     padding: 9px 6px 10px;
     font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-ticker span {
+    animation: none;
   }
 }

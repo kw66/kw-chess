@@ -348,33 +348,84 @@ function render() {
   const scene = SCENES[state.currentScene];
   app.innerHTML = `
     <main class="shell">
+      ${renderMobileStoryTrack()}
       <article class="story-panel">
         <div class="story-content">
-          <div class="scene-heading">
-            <p class="scene-act">${scene.act}</p>
-            <h1>${scene.title}</h1>
+          <div class="desktop-heading">
+            <div class="scene-heading">
+              <p class="scene-act">${scene.act}</p>
+              <h1>${scene.title}</h1>
+            </div>
+            <blockquote>${scene.quote}</blockquote>
           </div>
-          <blockquote>${scene.quote}</blockquote>
+          <div class="story-ticker" aria-label="剧情短句">
+            <span>${scene.quote}</span>
+          </div>
           <div class="story-text">
-            ${scene.body.map((paragraph) => `<p>${paragraph}</p>`).join('')}
+            ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
           </div>
           ${scene.kind === 'match' ? renderMatchText(scene) : ''}
         </div>
-        <div class="scene-actions">
-          <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
-          ${
-            scene.kind === 'ending'
-              ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
-              : `<button type="button" class="nav-btn primary" data-action="complete">${scene.kind === 'match' ? '完成本局' : '继续'}</button>`
-          }
-          <button type="button" class="nav-btn secondary" data-action="next" ${
-            state.currentScene < state.maxScene && state.currentScene < SCENES.length - 1 ? '' : 'disabled'
-          }>下一段</button>
-        </div>
       </article>
+      <div class="scene-actions">
+        <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
+        ${
+          scene.kind === 'ending'
+            ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
+            : `<button type="button" class="nav-btn primary" data-action="complete">${scene.kind === 'match' ? '完成本局' : '继续'}</button>`
+        }
+        <button type="button" class="nav-btn secondary" data-action="next" ${
+          state.currentScene < state.maxScene && state.currentScene < SCENES.length - 1 ? '' : 'disabled'
+        }>下一段</button>
+      </div>
     </main>
   `;
   bindEvents();
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(scrollCurrentTrackItem);
+  } else {
+    scrollCurrentTrackItem();
+  }
+}
+
+function renderMobileStoryTrack() {
+  return `
+    <section class="mobile-story-track" aria-label="剧情进度">
+      <div class="mobile-track-title">
+        <h2><span>${SCENES[state.currentScene].act}</span>${SCENES[state.currentScene].title}</h2>
+        <p class="mobile-count">${state.currentScene + 1} / ${SCENES.length}</p>
+      </div>
+      <div class="track-scroll" role="list">
+        ${SCENES.map((scene, index) => renderTrackItem(scene, index)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderTrackItem(scene, index) {
+  const unlocked = index <= state.maxScene;
+  const current = index === state.currentScene;
+  return `
+    <button
+      type="button"
+      class="track-item${current ? ' current' : ''}${unlocked ? '' : ' locked'}"
+      data-action="track"
+      data-index="${index}"
+      ${unlocked ? '' : 'disabled'}
+      role="listitem"
+      aria-current="${current ? 'step' : 'false'}"
+    >
+      <span class="track-dot"></span>
+      <span class="track-label">${unlocked ? scene.title : '???'}</span>
+    </button>
+  `;
+}
+
+function decorateParagraph(paragraph, index) {
+  const marks = ['♟️', '🔥', '⚔️', '✨'];
+  if (index === 0) return paragraph;
+  if (index > 3) return paragraph;
+  return `<span class="story-mark">${marks[(index - 1) % marks.length]}</span>${paragraph}`;
 }
 
 function renderMatchText(scene) {
@@ -394,6 +445,7 @@ function bindEvents() {
       if (action === 'complete') completeCurrentScene();
       if (action === 'prev') goScene(state.currentScene - 1);
       if (action === 'next') goScene(state.currentScene + 1);
+      if (action === 'track') goScene(Number(button.dataset.index));
       if (action === 'restart') {
         state.currentScene = 0;
         saveState();
@@ -402,6 +454,12 @@ function bindEvents() {
       }
     });
   });
+}
+
+function scrollCurrentTrackItem() {
+  const current = app.querySelector('.track-item.current');
+  if (!current) return;
+  current.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 window.render_game_to_text = () =>
