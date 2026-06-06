@@ -349,15 +349,17 @@ function render() {
   app.innerHTML = `
     <main class="shell">
       <article class="story-panel">
-        <div class="scene-heading">
-          <p class="scene-act">${scene.act}</p>
-          <h1>${scene.title}</h1>
+        <div class="story-content">
+          <div class="scene-heading">
+            <p class="scene-act">${scene.act}</p>
+            <h1>${scene.title}</h1>
+          </div>
+          <blockquote>${scene.quote}</blockquote>
+          <div class="story-text">
+            ${scene.body.map((paragraph) => `<p>${paragraph}</p>`).join('')}
+          </div>
+          ${scene.kind === 'match' ? renderMatchText(scene) : ''}
         </div>
-        <blockquote>${scene.quote}</blockquote>
-        <div class="story-text">
-          ${scene.body.map((paragraph) => `<p>${paragraph}</p>`).join('')}
-        </div>
-        ${scene.kind === 'match' ? renderMatchText(scene) : ''}
         <div class="scene-actions">
           <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
           ${
