@@ -17,7 +17,7 @@ const SCENES = [
   {
     id: 'ai-arrives',
     act: '第一幕',
-    title: '铁幕降临',
+    title: 'AI 入局',
     kind: 'story',
     quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
     body: [
