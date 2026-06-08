@@ -489,7 +489,7 @@ function renderStoryScene(scene) {
 function renderStoryArt(scene) {
   if (!scene.art) return '';
   return `
-    <figure class="story-art" hidden>
+    <figure class="story-art">
       <img src="${scene.art.src}" alt="${scene.art.alt}" loading="lazy" decoding="async">
     </figure>
   `;
