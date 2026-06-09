@@ -481,12 +481,14 @@ blockquote {
   }
 
   .story-panel.is-playing {
+    align-self: start;
+    height: auto;
     padding: 8px;
   }
 
   .story-panel.is-playing .story-content {
     display: grid;
-    height: 100%;
+    height: auto;
     padding-right: 0;
     overflow: hidden;
   }
@@ -495,7 +497,7 @@ blockquote {
     align-content: start;
     gap: 7px;
     min-height: 0;
-    height: 100%;
+    height: auto;
   }
 
   .story-game-frame {
@@ -610,5 +612,241 @@ blockquote {
 @media (prefers-reduced-motion: reduce) {
   .story-ticker span {
     animation: none;
+  }
+}
+
+.story-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-4);
+  padding: 8px 10px;
+  border: 1px solid rgba(116, 70, 31, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 249, 231, 0.54);
+  color: #6b4a30;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.story-score strong {
+  color: var(--red-deep);
+  font-size: 15px;
+}
+
+.story-score span:last-child {
+  text-align: right;
+}
+
+.choice-panel,
+.ability-card {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid rgba(105, 66, 35, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 249, 231, 0.52);
+}
+
+.choice-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.choice-head strong,
+.ability-card strong {
+  color: #2d1d12;
+  font-size: 16px;
+}
+
+.choice-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.choice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 9px;
+  min-height: 112px;
+  padding: 11px;
+  border: 1px solid rgba(78, 46, 22, 0.32);
+  border-radius: 8px;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 229, 0.98), rgba(231, 204, 154, 0.94));
+  box-shadow:
+    0 3px 0 rgba(91, 55, 26, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  text-align: left;
+}
+
+.choice-card.selected {
+  border-color: rgba(159, 32, 25, 0.68);
+  background: linear-gradient(180deg, #ffe99f 0%, #edc05a 54%, #d19a34 100%);
+}
+
+.choice-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.36;
+}
+
+.choice-piece {
+  display: grid;
+  grid-row: span 2;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(159, 32, 25, 0.36);
+  border-radius: 50%;
+  background: #fff4d8;
+  color: var(--red);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.choice-title {
+  align-self: end;
+  overflow: hidden;
+  color: #24180f;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.choice-copy,
+.choice-ability {
+  grid-column: 1 / -1;
+  color: #4d3928;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.choice-ability {
+  color: #755231;
+}
+
+.ability-card {
+  display: grid;
+  gap: 8px;
+}
+
+.ability-card p {
+  margin: 0;
+  color: #4d3928;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.ability-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.story-game-shell {
+  grid-template-rows: auto auto auto;
+}
+
+.story-game-meta {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid rgba(105, 66, 35, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 249, 231, 0.5);
+  color: #5f422b;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.story-game-meta strong {
+  color: var(--red-deep);
+}
+
+.story-game-actions.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 560px) {
+  .story-score {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    margin-top: 9px;
+    padding: 7px 9px;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .story-score span:last-child {
+    text-align: center;
+  }
+
+  .choice-panel,
+  .ability-card {
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .choice-head {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 9px;
+  }
+
+  .choice-head strong,
+  .ability-card strong {
+    font-size: 15px;
+  }
+
+  .choice-head span {
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .choice-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .choice-card {
+    min-height: 86px;
+    padding: 9px;
+  }
+
+  .choice-copy,
+  .choice-ability {
+    font-size: 12px;
+  }
+
+  .ability-card p {
+    font-size: 13px;
+  }
+
+  .story-game-meta {
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .story-game-actions.four {
+    grid-template-columns: repeat(4, 1fr);
   }
 }

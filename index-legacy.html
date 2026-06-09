@@ -954,6 +954,19 @@ function generateMoves(board, srcCol, srcRow) {
       }
       // 王不能叠层
     }
+    // 觉醒王照面：同列无遮挡时，可主动击杀未觉醒的敌方将帅
+    const faceDir = owner === RED ? -1 : 1;
+    let fr = srcRow + faceDir;
+    while (inBoard(srcCol, fr)) {
+      const t = board[fr][srcCol];
+      if (t) {
+        if (t.owner === opp && t.type === TYPE.KING && t.upgraded === false) {
+          moves.push({ col: srcCol, row: fr, kind: 'eat' });
+        }
+        break;
+      }
+      fr += faceDir;
+    }
   }
 
   // ── 兵 ──────────────────────────────────────
@@ -2803,6 +2816,20 @@ function drawPieceAt(x, y, piece, selected) {
   ctx.font = 'bold 19px "Microsoft YaHei",serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(CHARS[piece.owner][piece.type], x, y);
+  if (!_CLASSIC && piece.upgraded !== false) {
+    const sx = x - R + 8;
+    const sy = y - R + 8;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#f6c84c';
+    ctx.fill();
+    ctx.strokeStyle = '#8b4a12';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#7a2b13';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('★', sx, sy + 0.5);
+  }
   if (piece.layer > 1) {
     if (piece.groups && piece.groups.length > 1) {
       // 未合体：同样的红圆样式，在右侧上下等分点显示各组层数
