@@ -8,6 +8,7 @@ const PIECES = [
     actTitle: '列车冲撞',
     art: './assets/story-art/awakening-rook.webp',
     alt: '战场棋盘上红车化作赤金战车冲破阵线',
+    role: '突破封锁，适合打开被堵死的僵局。',
     choice: '你最相信突破。路被堵死，就撞开。',
     quote: '木纹深处亮起赤金轮影，像沉睡多年的战车终于醒来。',
     ability: '直线冲撞。车可以撞开挡路棋子，把堵死的路线撞成突破口。',
@@ -20,6 +21,7 @@ const PIECES = [
     actTitle: '马踏飞燕',
     art: './assets/story-art/awakening-horse.webp',
     alt: '棋盘战场上马魂踏风跃起连续踩破敌阵',
+    role: '连续踩杀，适合在混乱中撕开第二条路。',
     choice: '你最相信变化。一步之后，还能再踏一步。',
     quote: '马影跃出格线，蹄下的风把旧规则踏成碎光。',
     ability: '不再被蹩马腿束缚。吃子后可以继续连踩，像在敌阵里踏出一条风路。',
@@ -32,6 +34,7 @@ const PIECES = [
     actTitle: '洲际导弹',
     art: './assets/story-art/awakening-cannon.webp',
     alt: '棋盘战场上炮魂化作远程火光越过阵线',
+    role: '远程压制，适合威胁 AI 以为安全的位置。',
     choice: '你最相信远方的杀意。真正的威胁不必站在眼前。',
     quote: '炮魂醒来时，棋盘深处响起一声闷雷。',
     ability: '远程施压。不再只等一个合适炮架，后方也会被突然落下的火光照亮。',
@@ -44,6 +47,7 @@ const PIECES = [
     actTitle: '集束炸弹',
     art: './assets/story-art/awakening-pawn.webp',
     alt: '棋盘战场上小兵燃起火种并引爆前线',
+    role: '牺牲爆破，适合用小子换出大空间。',
     choice: '你最相信不退。最小的棋子，也能炸开局面。',
     quote: '兵魂不是王冠，而是一点不肯熄灭的火。',
     ability: '叠层推进，自爆换空间。小兵可以用牺牲把僵局炸出缺口。',
@@ -56,6 +60,7 @@ const PIECES = [
     actTitle: 'X 形光波',
     art: './assets/story-art/awakening-advisor.webp',
     alt: '棋盘战场上仕魂守住九宫并斩出X形光波',
+    role: '守中反杀，适合把贴近九宫的威胁切开。',
     choice: '你最相信守护。不是挡在王前，而是切开杀意。',
     quote: '守护不只是挡住黑暗，也可以把黑暗切开。',
     ability: '斜线光波。仕落子时沿斜线释放伤害，切开贴近九宫的威胁。',
@@ -68,6 +73,7 @@ const PIECES = [
     actTitle: '十字地震波',
     art: './assets/story-art/awakening-bishop.webp',
     alt: '棋盘战场上相魂踏裂河界并释放十字地震波',
+    role: '跨河控场，适合扩大棋盘上的震荡范围。',
     choice: '你最相信边界会碎。河界不是命令，只是旧棋盘的伤口。',
     quote: '不能过河，只是旧棋盘留下的边界；棋魂醒来时，河也会让路。',
     ability: '跨河震荡。相可以越过河界，并在落点释放十字地震波。',
@@ -80,6 +86,7 @@ const PIECES = [
     actTitle: '御驾亲征',
     art: './assets/story-art/awakening-king.webp',
     alt: '棋盘战场上帅魂展开王冠般的九宫光芒',
+    role: '御驾亲征，适合主动压迫并寻找斩首机会。',
     choice: '你最相信亲征。王不该永远站在别人身后。',
     quote: '帅魂醒来时，九宫不再是牢笼，而像一顶缓缓展开的冠。',
     ability: '主动吃子成长。觉醒帅可以主动压制对方将帅；若对方未觉醒，甚至能借照面取敌首级。',
@@ -89,6 +96,16 @@ const PIECES = [
 
 const PIECE_BY_KEY = Object.fromEntries(PIECES.map((piece) => [piece.key, piece]));
 const ALL_PIECE_KEYS = PIECES.map((piece) => piece.key);
+const TYPE_TO_PIECE_KEY = { R: 'rook', H: 'horse', C: 'cannon', P: 'pawn', A: 'advisor', B: 'bishop', K: 'king' };
+const SOUL_LIVE_HINTS = {
+  rook: '车魂：直线冲撞，能撞开挡路棋子，把堵死的路线撞成突破口。',
+  horse: '马魂：不再怕蹩腿，吃子后可以继续连踩，适合在敌阵里连续制造威胁。',
+  cannon: '炮魂：远程施压，不必只等一个炮架，可以打到 AI 以为安全的位置。',
+  pawn: '兵魂：上下左右推进，可叠层，必要时自爆换空间。',
+  advisor: '仕魂：落子释放 X 形光波，适合守住中路并反切贴近的威胁。',
+  bishop: '相魂：可以跨河，落点释放十字地震波，适合扩大控场范围。',
+  king: '帅魂：主动吃子成长；对方将帅未觉醒且同列无遮挡时，可照面远距击杀。',
+};
 const app = document.querySelector('#app');
 const state = loadState();
 let messageListenerBound = false;
@@ -151,8 +168,8 @@ function buildScenes() {
       quote: '那时，没人相信你会输。连你自己也不信。',
       body: [
         '你第一次夺冠时，还不到十八岁。',
-        '第二冠，第三冠，第五冠，第八冠。八座冠军杯摆在棋院展柜里，灯光落下来，安静得像八枚棋子。',
-        '人们说你是天才。老棋手说，你下棋时总能比别人早一步看见局势的去向。',
+        '第二冠，第三冠，第五冠，第八冠。八座冠军杯摆在棋院展柜里，灯光落下来，像八枚已经落定的棋子。',
+        '人们说你是天才。老棋手说，你不是算得更快，而是总能比别人早一点看见局势的方向。',
       ],
     },
     {
@@ -165,7 +182,7 @@ function buildScenes() {
       body: [
         'AI 出现的时候，最开始没有人把它当成真正的棋手。',
         '它只有版本号、算力、训练数据，和一间永不熄灯的机房。棋院里有人说，机器会算，但不懂棋。',
-        '直到它开始连胜。棋谱贴满走廊，第二天清晨，AI 的新版本又把这些答案推翻。',
+        '直到它开始连胜。棋谱贴满走廊，棋手们连夜复盘；第二天清晨，AI 的新版本又把这些答案推翻。',
       ],
     },
     {
@@ -176,8 +193,8 @@ function buildScenes() {
       quote: '十五局八胜。每天一局。人类有整夜休息，AI 也有整夜训练。',
       body: [
         '人机大战公布后，所有镜头都对准了你。',
-        '赛制是十五局八胜。一天一盘，棋手可以休息、复盘、准备第二天。可所有人都知道，AI 的夜晚不会用来睡觉。',
-        '你坐在发布会中央，听见“人类智慧”四个字一次次落在自己肩上。那不是赞美，是重量。',
+        '赛制是十五局八胜。一天一盘，人类可以休息、复盘、准备第二天。可所有人都知道，AI 的夜晚不会用来睡觉。',
+        '你坐在发布会中央，听见“人类智慧”四个字一次次落在自己肩上。那不是口号，是重量。',
       ],
     },
     {
@@ -194,7 +211,7 @@ function buildScenes() {
       body: [
         '棋盘另一侧没有人，只有屏幕亮着。',
         '中盘之后，局面开始失控。你的每一次长考都只能多争取一点可能，AI 却平静地拆掉所有变招。',
-        '这不是一盘普通的输棋。你第一次怀疑，棋盘本身是不是已经走到了尽头。',
+        '这不是一盘普通的输棋。你第一次感觉到，自己熟悉了一生的棋盘，也许已经走到了尽头。',
       ],
     },
   ];
@@ -210,8 +227,8 @@ function buildScenes() {
     quote: '过去的输棋，会让你想下一盘。这一次，你开始怀疑棋盘本身。',
     body: [
       '赛后发布会上，AI 的合成声很平静：经过第一局，我们已经基本掌握了你的棋风。',
-      '它把这称作知识蒸馏。你的长考、试探、弃子和搏杀，都在一夜之间变成它训练的新样本。',
-      '那一晚，你把棋盒带回房间。灯灭之后，有一枚棋子在盒中轻轻震了一下。',
+      '它把这称作知识蒸馏。你的长考、试探、弃子和搏杀，都在一夜之间变成它训练自己的材料。',
+      '那一晚，你把棋盒带回房间。灯灭之后，有一枚棋子在黑暗里轻轻震了一下。',
     ],
   });
 
@@ -235,8 +252,8 @@ function buildScenes() {
       quote: '比分是 AI 1 : 7 你。只差一局，也只剩一夜。',
       body: [
         '七枚棋魂全部醒来。可这不再只是你的优势。',
-        'AI 已经学会了你过去七天展露出的全部能力。它用自博弈把每一次冲撞、连踩、光波和自爆都拆成样本。',
-        '如果第九局你不能拿下第八胜，后面几天它会继续训练，甚至可能比你更懂这套新棋。',
+        'AI 已经学会了你过去七天展露出的全部能力。它用自博弈把每一次冲撞、连踩、光波和自爆都拆成新的样本。',
+        '如果第九局你不能拿下第八胜，后面的夜晚会属于它。到那时，它也许会比你更懂这套新棋。',
       ],
     });
     scenes.push({
@@ -252,7 +269,7 @@ function buildScenes() {
       quote: '这一次，AI 必须在你创造的新棋盘里分出胜负。',
       body: [
         'AI 不再是传统棋子。它带着七枚觉醒棋魂坐到你对面。',
-        '你也没有新的底牌。剩下的只有理解、选择，以及这些天你亲手唤醒的棋魂。',
+        '你也没有新的底牌。剩下的只有理解、选择，以及这些天你亲手唤醒又亲手暴露的棋魂。',
       ],
     });
   }
@@ -298,7 +315,7 @@ function makeChoiceScene(day, slot) {
       day === 2
         ? '第一局之后，AI 以为它蒸馏了你的全部棋风。可它没有蒸馏到棋盒深处那一声回响。'
         : '赛前的机房整夜未熄。AI 复盘了你昨天展露的棋魂，并把它加入今天的模型。',
-      '你不能一次把所有底牌都亮出来。你决定每天只唤醒一枚新的棋魂，让自己始终领先一步。',
+      '你不能一次把所有底牌都亮出来。每天只唤醒一枚，不是保守，而是让自己始终领先一步的唯一办法。',
     ],
   };
 }
@@ -319,7 +336,7 @@ function makeAwakeningScene(day, slot, pieceKey) {
       piece.fantasy,
       `棋魂觉醒：${piece.ability}`,
       day === 2
-        ? '这是反转的第一步。AI 还不知道这枚棋子已经不再属于旧规则。'
+        ? '这是反转的第一步。AI 还不知道，这枚棋子已经不再属于旧规则。'
         : '你知道，今天用出来的奇迹，明天就会变成 AI 的武器。所以这一局必须赢。',
     ],
   };
@@ -344,7 +361,7 @@ function makeMatchScene(day, slot, pieceKey) {
     body: [
       `你没有把所有棋魂都亮出来，只让${piece.name}魂走到台前。`,
       previous === '无'
-        ? 'AI 仍按传统象棋估值。它能计算局面，却还不知道棋魂会把规则撕开。'
+        ? 'AI 仍按传统象棋估值。它能计算局面，却还不知道棋魂会从规则本身撕开缺口。'
         : `AI 已经带着${previous}魂回到棋盘。它学得很快，但今天的新魂还不在它的训练集里。`,
     ],
   };
@@ -445,26 +462,32 @@ function render() {
   app.innerHTML = `
     <main class="shell">
       ${renderMobileStoryTrack(scenes)}
-      <article class="story-panel${activeMatch ? ' is-playing' : ''}">
+      <article class="story-panel kind-${scene.kind}${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
           ${activeMatch ? renderEmbeddedMatch(scene) : renderStoryScene(scene)}
         </div>
       </article>
-      <div class="scene-actions">
-        <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
-        ${
-          scene.kind === 'ending'
-            ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
-            : `<button type="button" class="nav-btn primary" data-action="complete" ${activeMatch || (scene.kind === 'choice' && !state.selected[scene.slot]) ? 'disabled' : ''}>${activeMatch ? '对局中' : getPrimaryActionLabel(scene)}</button>`
-        }
-        <button type="button" class="nav-btn secondary" data-action="next" ${
-          state.currentScene < state.maxScene && state.currentScene < scenes.length - 1 ? '' : 'disabled'
-        }>下一段</button>
-      </div>
+      ${activeMatch ? '' : renderSceneActions(scene, scenes)}
     </main>
   `;
   bindEvents();
   requestAnimationFrame(scrollCurrentTrackItem);
+}
+
+function renderSceneActions(scene, scenes) {
+  return `
+    <div class="scene-actions">
+      <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
+      ${
+        scene.kind === 'ending'
+          ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
+          : `<button type="button" class="nav-btn primary" data-action="complete" ${(scene.kind === 'choice' && !state.selected[scene.slot]) ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>`
+      }
+      <button type="button" class="nav-btn secondary" data-action="next" ${
+        state.currentScene < state.maxScene && state.currentScene < scenes.length - 1 ? '' : 'disabled'
+      }>下一段</button>
+    </div>
+  `;
 }
 
 function renderMobileStoryTrack(scenes) {
@@ -515,12 +538,23 @@ function renderStoryScene(scene) {
     </div>
     ${renderScoreStrip()}
     ${renderStoryArt(scene)}
-    <div class="story-text">
-      ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
-    </div>
+    ${scene.kind === 'choice' ? renderChoiceContext(scene) : `
+      <div class="story-text">
+        ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
+      </div>
+    `}
     ${scene.kind === 'choice' ? renderChoice(scene) : ''}
     ${scene.kind === 'awakening' ? renderAbility(scene) : ''}
     ${scene.kind === 'match' ? renderMatchText(scene) : ''}
+  `;
+}
+
+function renderChoiceContext(scene) {
+  return `
+    <div class="choice-context">
+      <p>${scene.body[0]}</p>
+      <p>${scene.body[1]}</p>
+    </div>
   `;
 }
 
@@ -546,36 +580,73 @@ function renderStoryArt(scene) {
 
 function renderChoice(scene) {
   const selectedKey = state.selected[scene.slot] || null;
+  const selectedPiece = selectedKey ? PIECE_BY_KEY[selectedKey] : null;
   return `
     <section class="choice-panel" aria-label="选择觉醒棋魂">
       <div class="choice-head">
-        <strong>${selectedKey ? `当前选择：${PIECE_BY_KEY[selectedKey].name}魂` : '选择今天的棋魂'}</strong>
-        ${selectedKey ? '<span>重新选择会清除这一天之后的路线</span>' : '<span>AI 明天会学会你今天展示的能力</span>'}
+        <strong>${selectedPiece ? `已选择：${selectedPiece.name}魂` : '今天只亮一枚棋魂'}</strong>
+        <span>${selectedPiece ? '确认前仍可改选' : 'AI 明天会学会你今天展示的能力'}</span>
       </div>
-      <div class="choice-grid">
-        ${PIECES.map((piece) => renderChoiceCard(scene, piece, selectedKey)).join('')}
+      <div class="soul-picker" aria-label="棋魂候选">
+        ${PIECES.map((piece) => renderSoulButton(scene, piece, selectedKey)).join('')}
       </div>
+      ${selectedPiece ? renderSoulDetail(scene, selectedPiece) : renderSoulEmpty(scene)}
     </section>
   `;
 }
 
-function renderChoiceCard(scene, piece, selectedKey) {
+function renderSoulButton(scene, piece, selectedKey) {
   const usedElsewhere = state.selected.includes(piece.key) && selectedKey !== piece.key;
   const selected = selectedKey === piece.key;
   return `
     <button
       type="button"
-      class="choice-card${selected ? ' selected' : ''}"
+      class="soul-button${selected ? ' selected' : ''}${usedElsewhere ? ' used' : ''}"
       data-action="choose-soul"
       data-slot="${scene.slot}"
       data-piece="${piece.key}"
       ${usedElsewhere ? 'disabled' : ''}
     >
       <span class="choice-piece">${piece.name}</span>
-      <span class="choice-title">${piece.actTitle}</span>
-      <span class="choice-copy">${piece.choice}</span>
-      <span class="choice-ability">${piece.ability}</span>
+      <span class="soul-button-text">
+        <strong>${piece.actTitle}</strong>
+        <small>${selected ? '已选' : (usedElsewhere ? '已觉醒' : piece.title)}</small>
+      </span>
     </button>
+  `;
+}
+
+function renderSoulDetail(scene, piece) {
+  const previousKeys = state.selected.slice(0, scene.slot);
+  const previous = previousKeys.map((key) => PIECE_BY_KEY[key].name).join('、') || '暂无';
+  return `
+    <div class="soul-detail">
+      <figure class="soul-art">
+        <img src="${piece.art}" alt="${piece.alt}" loading="lazy" decoding="async">
+      </figure>
+      <div class="soul-copy">
+        <div class="soul-title-row">
+          <span class="choice-piece large">${piece.name}</span>
+          <div>
+            <strong>${piece.title} · ${piece.actTitle}</strong>
+            <span>${piece.role}</span>
+          </div>
+        </div>
+        <p class="soul-belief">${piece.choice}</p>
+        <p class="soul-ability"><b>走法能力：</b>${piece.ability}</p>
+        <p class="soul-warning">你：${previous === '暂无' ? piece.name : `${previous}、${piece.name}`}。AI：${previous}。用新魂赢下时间差。</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderSoulEmpty(scene) {
+  const remaining = PIECES.filter((piece) => !state.selected.includes(piece.key)).length;
+  return `
+    <div class="soul-empty">
+      <strong>先选一枚棋子。</strong>
+      <p>剩余 ${remaining} 枚棋魂可以回应你。点上方棋子后，下方会显示它的觉醒图、战术定位和走法能力。</p>
+    </div>
   `;
 }
 
@@ -606,11 +677,69 @@ function renderMatchText(scene) {
   const retryText = getRetryText(scene);
   return `
     <div class="story-text match-text">
-      <p>${scene.matchTitle}：${scene.objective}</p>
+      ${completed ? '' : renderMatchBrief(scene)}
       ${completed ? `<p>${scene.resultText}</p>` : ''}
       ${!completed && retryText ? `<p class="retry-text">${retryText}</p>` : ''}
     </div>
   `;
+}
+
+function renderMatchBrief(scene) {
+  const brief = getMatchBrief(scene);
+  return `
+    <section class="match-brief" aria-label="本局提示">
+      <div class="match-brief-title">
+        <strong>${scene.matchTitle}</strong>
+        <span>${brief.badge}</span>
+      </div>
+      <div class="match-brief-grid">
+        ${brief.items.map((item) => `
+          <div class="match-brief-item">
+            <span>${item.label}</span>
+            <strong>${item.value}</strong>
+          </div>
+        `).join('')}
+      </div>
+      <p>${brief.tip}</p>
+    </section>
+  `;
+}
+
+function getMatchBrief(scene) {
+  if (scene.day === 1) {
+    return {
+      badge: '旧棋对决',
+      items: [
+        { label: '你的棋魂', value: '尚未觉醒' },
+        { label: 'AI 状态', value: '传统棋力巅峰' },
+        { label: '推进方式', value: '下完或认输' },
+      ],
+      tip: '这一局不是为了取胜，而是让你看清 AI 在旧棋盘里能把希望算到多干净。',
+    };
+  }
+  if (scene.day === 9) {
+    return {
+      badge: '全魂决战',
+      items: [
+        { label: '你方觉醒', value: '车、马、炮、兵、仕、相、帅' },
+        { label: 'AI 已掌握', value: '七枚棋魂' },
+        { label: '比分', value: 'AI 1 : 7 你' },
+      ],
+      tip: '这是第八胜的窗口。若今天不能结束十五番棋，AI 后续会用自博弈继续打磨这套新规则。',
+    };
+  }
+  const piece = PIECE_BY_KEY[scene.pieceKey];
+  const player = state.selected.slice(0, scene.slot + 1).map((key) => PIECE_BY_KEY[key].name).join('、');
+  const ai = state.selected.slice(0, scene.slot).map((key) => PIECE_BY_KEY[key].name).join('、') || '仍是旧棋';
+  return {
+    badge: '时间差',
+    items: [
+      { label: '今日新魂', value: `${piece.name}魂` },
+      { label: '你方觉醒', value: player },
+      { label: 'AI 已掌握', value: ai },
+    ],
+    tip: `本局重点：用${piece.name}魂打出今天唯一的新信息。${piece.role}`,
+  };
 }
 
 function getPrimaryActionLabel(scene) {
@@ -628,6 +757,7 @@ function renderEmbeddedMatch(scene) {
         <span>${scene.matchTitle}</span>
         <strong>${firstDay ? '可认输推进' : '必须获胜'}</strong>
       </div>
+      <div class="story-live-hint" id="story-live-hint" data-default-hint="${escapeAttr(getDefaultLiveHint(scene))}">${getDefaultLiveHint(scene)}</div>
       <iframe
         id="story-game-frame"
         class="story-game-frame"
@@ -643,6 +773,21 @@ function renderEmbeddedMatch(scene) {
       </div>
     </div>
   `;
+}
+
+function getDefaultLiveHint(scene) {
+  if (scene.day === 1) return '第一局没有棋魂，先感受旧棋盘里的差距。';
+  if (scene.day === 9) return '双方全魂觉醒。点击带星棋子，查看它此刻能打出的能力。';
+  const piece = PIECE_BY_KEY[scene.pieceKey];
+  return `今日新魂：${piece.name}。点击带星棋子，查看棋魂能力提示。`;
+}
+
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function buildGameSrc(scene) {
@@ -718,10 +863,7 @@ function getRetryText(scene) {
 function chooseSoul(slot, pieceKey) {
   if (!PIECE_BY_KEY[pieceKey]) return;
   const oldKey = state.selected[slot];
-  if (oldKey === pieceKey) {
-    moveToScene(state.currentScene + 1);
-    return;
-  }
+  if (oldKey === pieceKey) return;
   const willRewrite = oldKey || state.selected.length > slot || state.completedDays.some((day) => day >= slot + 2);
   if (willRewrite) {
     const ok = window.confirm('重新选择会清除这一天之后的觉醒路线和对局结果。确定要开启新路线吗？');
@@ -736,21 +878,41 @@ function chooseSoul(slot, pieceKey) {
     if (Number.isFinite(matchDay) && matchDay >= day) delete state.matchResults[key];
   }
   state.activeMatch = null;
-  const scenes = buildScenes();
-  const nextIndex = scenes.findIndex((scene) => scene.id === `awakening-${day}`);
-  state.currentScene = nextIndex >= 0 ? nextIndex : state.currentScene;
-  state.maxScene = Math.max(state.maxScene, state.currentScene);
+  state.maxScene = Math.min(state.maxScene, state.currentScene);
   saveState();
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function handleGameMessage(event) {
-  if (!event.data || event.data.type !== 'game-end') return;
+  if (!event.data) return;
+  if (event.data.type === 'piece-selected') {
+    updateLivePieceHint(event.data);
+    return;
+  }
+  if (event.data.type !== 'game-end') return;
   const scenes = buildScenes();
   const scene = scenes[state.currentScene];
   if (!scene || scene.kind !== 'match' || state.activeMatch !== scene.id) return;
   completeMatchFromGame(scene, event.data.stats || {});
+}
+
+function updateLivePieceHint(data) {
+  const el = document.querySelector('#story-live-hint');
+  if (!el) return;
+  if (!data.pieceType) {
+    el.textContent = el.dataset.defaultHint || '点击带星棋子查看棋魂提示。';
+    el.classList.remove('active');
+    return;
+  }
+  const pieceKey = TYPE_TO_PIECE_KEY[data.pieceType];
+  if (data.upgraded && SOUL_LIVE_HINTS[pieceKey]) {
+    el.textContent = SOUL_LIVE_HINTS[pieceKey];
+    el.classList.add('active');
+    return;
+  }
+  el.textContent = '这枚棋子还没有觉醒，按传统走法行动。';
+  el.classList.remove('active');
 }
 
 function bindGlobalMessageListener() {

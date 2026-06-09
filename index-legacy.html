@@ -1868,9 +1868,9 @@ const PIECE_HINTS_KEWANG = {
   P: '兵觉醒：上下左右一步；同兵自动合体，双击可自爆。',
 };
 
-function postPieceHint(pieceType, hint) {
+function postPieceHint(pieceType, hint, upgraded = false) {
   if (_LEVEL_ID && window.self !== window.top) {
-    try { window.parent.postMessage({ type: 'piece-selected', pieceType, hint }, '*'); } catch(e) {}
+    try { window.parent.postMessage({ type: 'piece-selected', pieceType, hint, upgraded }, '*'); } catch(e) {}
   }
 }
 
@@ -1924,7 +1924,7 @@ function showLayerMenuHint(piece, fallback = '') {
   const hint = [base, describeLayerStatus(piece), describeLayerMenu(piece), fallback].filter(Boolean).join(' ');
   const el = document.getElementById('piece-hint');
   if (el) el.textContent = hint;
-  postPieceHint(pieceType, hint);
+  postPieceHint(pieceType, hint, !!(piece && piece.upgraded !== false && !_CLASSIC));
 }
 
 function showPieceHint(pieceOrType, prefix = '') {
@@ -1938,12 +1938,12 @@ function showPieceHint(pieceOrType, prefix = '') {
   const fullHint = [prefix, hint, layerHint, moveHint].filter(Boolean).join(' ');
   const el = document.getElementById('piece-hint');
   if (el) el.textContent = fullHint;
-  postPieceHint(pieceType, fullHint);
+  postPieceHint(pieceType, fullHint, !!(piece && piece.upgraded !== false && !_CLASSIC));
 }
 function clearPieceHint() {
   const el = document.getElementById('piece-hint');
   if (el) el.textContent = '';
-  postPieceHint(null, '');
+  postPieceHint(null, '', false);
 }
 
 function getRoundText() {
