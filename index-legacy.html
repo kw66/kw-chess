@@ -970,12 +970,12 @@ function generateMoves(board, srcCol, srcRow) {
   }
 
   // ── 兵 ──────────────────────────────────────
-  // 四方向各1格，可叠层（上限5），可自爆
+  // 觉醒兵：四方向各1格，可叠层（上限5），可自爆
   if (type === TYPE.PAWN) {
     for (const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       addMove(srcCol+dc, srcRow+dr);
     }
-    // 自爆（只要兵存在就可以）
+    // 觉醒兵可自爆
     moves.push({ col:srcCol, row:srcRow, kind:'explode' });
   }
 
@@ -2032,6 +2032,10 @@ async function executeMove(move) {
   const moveLayers = move.layers !== undefined ? move.layers : topGroup;
   const isSplit = piece.groups ? piece.groups.length > 1 : moveLayers < piece.layer;
   const isStack = move.kind === 'stack';
+  if (move.kind === 'explode' && (_CLASSIC || piece.type !== TYPE.PAWN || piece.upgraded === false)) {
+    showPieceHint(piece, '这枚兵还没有觉醒，不能自爆。');
+    return;
+  }
 
   // 计算最终棋盘（先算好，动画只负责过渡展示）
   const { board: newBoard, log, kingCaptured } = applyMove(
@@ -2704,6 +2708,7 @@ function layerPickerCenter(col, row) {
 // 双击有意义的情况：叠子（可拆分）或兵（可自爆）
 function getPieceSectors(piece) {
   const sectors = [];
+  if (_CLASSIC || !piece || piece.upgraded === false) return sectors;
   // 合体选项：存在多个组时显示
   if (piece.groups && piece.groups.length > 1) {
     sectors.push({ label: '合', value: 'merge' });
