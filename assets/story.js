@@ -165,52 +165,73 @@ function buildScenes() {
       act: '序章',
       title: '八冠王',
       kind: 'story',
+      scoreHidden: true,
       quote: '那时，没人相信你会输。连你自己也不信。',
       body: [
-        '你第一次夺冠时，还不到十八岁。',
-        '第二冠，第三冠，第五冠，第八冠。八座冠军杯摆在棋院展柜里，灯光落下来，像八枚已经落定的棋子。',
-        '人们说你是天才。老棋手说，你不是算得更快，而是总能比别人早一点看见局势的方向。',
+        '你第一次夺得全国冠军时，还不到十八岁。',
+        '从少年赛场到职业棋坛，你像一枚突然落进中路的重子，逼得所有人重新计算局面。',
+        '老棋手提起你时，总会停顿一下：这孩子下的不是一两步棋，他像是在和整盘棋说话。',
+        '后来第二冠、第三冠、第五冠、第八冠接连到来。八座冠军杯摆在棋院展柜里，灯光落下来，像八枚已经落定的棋子。',
       ],
     },
     {
       id: 'ai-era',
       act: '第一幕',
-      title: 'AI 时代',
+      title: 'AI 崛起',
       kind: 'story',
+      scoreHidden: true,
       art: { src: './assets/story-art/ai-era.webp', alt: '深夜机房里，屏幕上的棋盘被冷光照亮' },
       quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
       body: [
-        'AI 出现的时候，最开始没有人把它当成真正的棋手。',
-        '它只有版本号、算力、训练数据，和一间永不熄灯的机房。棋院里有人说，机器会算，但不懂棋。',
-        '直到它开始连胜。棋谱贴满走廊，棋手们连夜复盘；第二天清晨，AI 的新版本又把这些答案推翻。',
+        'AI 开始击败业余高手和职业新锐时，棋坛并没有轻视它。大家承认它算得快、记得多，也承认它的训练永远不会累。',
+        '主流棋类 AI 的方法并不神秘：搜索尽可能多的变化，再用局面打分判断哪条路更好。残局库、开局库、神经网络评估，都是为了把“看得远”和“看得准”叠在一起。',
+        '但中国象棋有数百年的技术积累。人们相信，真正站在山顶的棋手，不只是计算器。',
+        '它可以赢很多人。可要赢你？那似乎还是另一件事。',
       ],
     },
     {
       id: 'human-hope',
       act: '第一幕',
-      title: '十五番棋',
+      title: '人机大战',
       kind: 'story',
-      quote: '十五局八胜。每天一局。人类有整夜休息，AI 也有整夜训练。',
+      scoreHidden: true,
+      quote: '当人类棋手已经很难给你压力时，你也想知道，AI 能把你逼到哪里。',
       body: [
-        '人机大战公布后，所有镜头都对准了你。',
-        '赛制是十五局八胜。一天一盘，人类可以休息、复盘、准备第二天。可所有人都知道，AI 的夜晚不会用来睡觉。',
-        '你坐在发布会中央，听见“人类智慧”四个字一次次落在自己肩上。那不是口号，是重量。',
+        '你已经很久没有遇到真正陌生的对手。人类棋手的强弱、风格、习惯，你大多能在几十回合里摸清。',
+        '所以当人机大战被正式提出时，你心里并不只有压力，也有一丝久违的期待。',
+        '比赛被包装成一次技术检验：让最强的人类棋手与最新一代象棋 AI 对弈，看看机器是否真的能越过人类经验的顶点。',
+        '赛制是十五局八胜。一天一盘。人类可以休息、复盘、准备第二天；AI 的夜晚，则会继续训练。',
+        '发布会上，你说会认真对待。心里却很平静：如果它真能带来挑战，那也许是件好事。',
+      ],
+    },
+    {
+      id: 'match-1-before',
+      act: '第二幕',
+      title: '第一局 上',
+      kind: 'story',
+      scoreHidden: true,
+      art: { src: './assets/story-art/human-vs-ai.webp', alt: '聚光灯下的人机大战棋桌' },
+      quote: 'AI 的第一步很普通。普通到像一句问候。',
+      body: [
+        '第一局开赛时，场馆里很安静。镜头对准棋盘，也对准你的手。',
+        'AI 的前十几个回合没有任何炫技。它没有冒险，没有挑衅，只是把每一个子都放在最稳的位置。',
+        '外行看不出危险，只觉得局面焦灼。可你知道，焦灼是假象。它没有急着扩大优势，是因为最稳的打法已经足够压住你。',
       ],
     },
     {
       id: 'match-1',
       act: '第二幕',
-      title: '第一局',
+      title: '第一局 下',
       kind: 'match',
       day: 1,
+      scoreHidden: true,
       matchTitle: '第一局：旧棋的终点',
       objective: '这一局会很快让你看见差距。你可以亲自下完，也可以认输进入转折。',
       resultText: '第一局结束，比分来到 AI 1 : 0 你。你没有投子，只是看着最后一条路也被算完。',
-      art: { src: './assets/story-art/human-vs-ai.webp', alt: '聚光灯下的人机大战棋桌' },
-      quote: 'AI 的第一步很普通。普通到像一句问候。',
+      quote: '它滴水不漏。你第一次发现，自己连制造混乱的机会都没有。',
       body: [
-        '棋盘另一侧没有人，只有屏幕亮着。',
-        '中盘之后，局面开始失控。你的每一次长考都只能多争取一点可能，AI 却平静地拆掉所有变招。',
+        '中盘之后，你开始主动变招。弃子、牵制、兑子、转入复杂残局，每一条你熟悉的路都被它提前等住。',
+        'AI 占优后没有贪胜。它选择最稳健的推进，把你的反击一点点压窄，像用手掌按住一盏将要熄灭的灯。',
         '这不是一盘普通的输棋。你第一次感觉到，自己熟悉了一生的棋盘，也许已经走到了尽头。',
       ],
     },
@@ -471,7 +492,10 @@ function render() {
     </main>
   `;
   bindEvents();
-  requestAnimationFrame(scrollCurrentTrackItem);
+  requestAnimationFrame(() => {
+    scrollCurrentTrackItem();
+    updateTickerMotion();
+  });
 }
 
 function renderSceneActions(scene, scenes) {
@@ -536,7 +560,7 @@ function renderStoryScene(scene) {
     <div class="story-ticker" aria-label="剧情短句">
       <span>${scene.quote}</span>
     </div>
-    ${renderScoreStrip()}
+    ${scene.scoreHidden ? '' : renderScoreStrip()}
     ${renderStoryArt(scene)}
     ${scene.kind === 'choice' ? renderChoiceContext(scene) : `
       <div class="story-text">
@@ -972,6 +996,23 @@ function scrollCurrentTrackItem() {
   const current = app.querySelector('.track-item.current');
   if (!current) return;
   current.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
+function updateTickerMotion() {
+  app.querySelectorAll('.story-ticker').forEach((ticker) => {
+    const span = ticker.querySelector('span');
+    if (!span) return;
+    ticker.classList.remove('is-long');
+    span.style.removeProperty('--ticker-shift');
+    span.style.removeProperty('--ticker-duration');
+    const overflow = Math.ceil(span.scrollWidth - ticker.clientWidth);
+    if (overflow <= 2) return;
+    const shift = overflow + 20;
+    const duration = Math.min(6, Math.max(3.2, shift / 24));
+    span.style.setProperty('--ticker-shift', `-${shift}px`);
+    span.style.setProperty('--ticker-duration', `${duration}s`);
+    ticker.classList.add('is-long');
+  });
 }
 
 window.render_game_to_text = () => {

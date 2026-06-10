@@ -623,7 +623,10 @@ blockquote {
     display: inline-block;
     min-width: max-content;
     padding-right: 24px;
-    animation: ticker-nudge 8s ease-in-out infinite alternate;
+  }
+
+  .story-ticker.is-long span {
+    animation: ticker-nudge var(--ticker-duration, 4.8s) ease-in-out infinite alternate;
   }
 
   .story-panel.kind-choice .story-ticker {
@@ -636,7 +639,7 @@ blockquote {
     }
 
     to {
-      transform: translateX(-18px);
+      transform: translateX(var(--ticker-shift, -24px));
     }
   }
 
@@ -697,7 +700,7 @@ blockquote {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .story-ticker span {
+  .story-ticker.is-long span {
     animation: none;
   }
 }
