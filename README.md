@@ -7,6 +7,10 @@
 
 [🎮 点击即玩](https://kw66.github.io/kw-chess/) · [🏠 个人主页](https://kw66.github.io/)
 
+<br>
+
+<img src="./assets/story-art/human-vs-ai.webp" alt="科王象棋人机大战首图" width="720">
+
 </div>
 
 ## ✨ 当前版本
