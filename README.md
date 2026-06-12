@@ -9,7 +9,7 @@
 
 <br>
 
-<img src="./assets/story-art/human-vs-ai.webp" alt="科王象棋人机大战首图" width="720">
+<img src="./assets/story-art/readme-hero-xiangqi.webp" alt="科王象棋人机大战首图" width="720">
 
 </div>
 
