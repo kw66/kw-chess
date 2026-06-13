@@ -5,7 +5,7 @@
 八冠王败后，棋魂醒来。  
 一场关于你、AI 时代与新棋盘诞生的象棋剧情游戏。
 
-[🎮 点击即玩](https://kw66.github.io/kw-chess/) · [🏠 个人主页](https://kw66.github.io/)
+[🎮 点击即玩](https://kw66.github.io/kw-chess/) · [🕹️ 作者游戏合集](https://kw66.github.io/games/)
 
 <br>
 
