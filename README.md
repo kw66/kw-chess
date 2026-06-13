@@ -9,7 +9,7 @@
 
 <br>
 
-<img src="./assets/story-art/readme-hero-xiangqi.webp" alt="科王象棋人机大战首图" width="720">
+<img src="./assets/story-art/cover-kewang-xiangqi.webp" alt="科王象棋封面图" width="720">
 
 </div>
 
@@ -59,7 +59,7 @@
 | [`index-legacy.html`](./index-legacy.html) | 真实棋盘运行时，供剧情棋局内嵌调用 |
 | [`assets/story.css`](./assets/story.css) | 剧情页面样式 |
 | [`assets/story.js`](./assets/story.js) | 剧情数据、进度保存与交互逻辑 |
-| [`assets/story-art/`](./assets/story-art/) | 剧情插图与七枚棋魂觉醒图 |
+| [`assets/story-art/`](./assets/story-art/) | 封面与后续剧情视觉资源 |
 | [`.nojekyll`](./.nojekyll) | GitHub Pages 静态发布标记 |
 
 练兵场入口暂时隐藏，旧版完整对弈代码已用 Git tag 封存：`legacy-gameplay-before-story-20260606`。当前剧情棋局通过 `index-legacy.html` 内嵌运行，保证棋盘内操作和显示仍沿用原游戏。

@@ -6,8 +6,6 @@ const PIECES = [
     name: '车',
     title: '车魂',
     actTitle: '列车冲撞',
-    art: './assets/story-art/awakening-rook.webp',
-    alt: '战场棋盘上红车化作赤金战车冲破阵线',
     role: '突破封锁，适合打开被堵死的僵局。',
     choice: '你最相信突破。路被堵死，就撞开。',
     quote: '木纹深处亮起赤金轮影，像沉睡多年的战车终于醒来。',
@@ -19,8 +17,6 @@ const PIECES = [
     name: '马',
     title: '马魂',
     actTitle: '马踏飞燕',
-    art: './assets/story-art/awakening-horse.webp',
-    alt: '棋盘战场上马魂踏风跃起连续踩破敌阵',
     role: '连续踩杀，适合在混乱中撕开第二条路。',
     choice: '你最相信变化。一步之后，还能再踏一步。',
     quote: '马影跃出格线，蹄下的风把旧规则踏成碎光。',
@@ -32,8 +28,6 @@ const PIECES = [
     name: '炮',
     title: '炮魂',
     actTitle: '洲际导弹',
-    art: './assets/story-art/awakening-cannon.webp',
-    alt: '棋盘战场上炮魂化作远程火光越过阵线',
     role: '远程压制，适合威胁 AI 以为安全的位置。',
     choice: '你最相信远方的杀意。真正的威胁不必站在眼前。',
     quote: '炮魂醒来时，棋盘深处响起一声闷雷。',
@@ -45,8 +39,6 @@ const PIECES = [
     name: '兵',
     title: '兵魂',
     actTitle: '集束炸弹',
-    art: './assets/story-art/awakening-pawn.webp',
-    alt: '棋盘战场上小兵燃起火种并引爆前线',
     role: '牺牲爆破，适合用小子换出大空间。',
     choice: '你最相信不退。最小的棋子，也能炸开局面。',
     quote: '兵魂不是王冠，而是一点不肯熄灭的火。',
@@ -58,8 +50,6 @@ const PIECES = [
     name: '仕',
     title: '仕魂',
     actTitle: 'X 形光波',
-    art: './assets/story-art/awakening-advisor.webp',
-    alt: '棋盘战场上仕魂守住九宫并斩出X形光波',
     role: '守中反杀，适合把贴近九宫的威胁切开。',
     choice: '你最相信守护。不是挡在王前，而是切开杀意。',
     quote: '守护不只是挡住黑暗，也可以把黑暗切开。',
@@ -71,8 +61,6 @@ const PIECES = [
     name: '相',
     title: '相魂',
     actTitle: '十字地震波',
-    art: './assets/story-art/awakening-bishop.webp',
-    alt: '棋盘战场上相魂踏裂河界并释放十字地震波',
     role: '跨河控场，适合扩大棋盘上的震荡范围。',
     choice: '你最相信边界会碎。河界不是命令，只是旧棋盘的伤口。',
     quote: '不能过河，只是旧棋盘留下的边界；棋魂醒来时，河也会让路。',
@@ -84,8 +72,6 @@ const PIECES = [
     name: '帅',
     title: '帅魂',
     actTitle: '御驾亲征',
-    art: './assets/story-art/awakening-king.webp',
-    alt: '棋盘战场上帅魂展开王冠般的九宫光芒',
     role: '御驾亲征，适合主动压迫并寻找斩首机会。',
     choice: '你最相信亲征。王不该永远站在别人身后。',
     quote: '帅魂醒来时，九宫不再是牢笼，而像一顶缓缓展开的冠。',
@@ -180,7 +166,6 @@ function buildScenes() {
       title: 'AI 崛起',
       kind: 'story',
       scoreHidden: true,
-      art: { src: './assets/story-art/ai-era.webp', alt: '深夜机房里，屏幕上的棋盘被冷光照亮' },
       quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
       body: [
         'AI 开始击败业余高手和职业新锐时，棋坛并没有轻视它。大家承认它算得快、记得多，也承认它的训练永远不会累。',
@@ -210,7 +195,6 @@ function buildScenes() {
       title: '第一局 上',
       kind: 'story',
       scoreHidden: true,
-      art: { src: './assets/story-art/human-vs-ai.webp', alt: '聚光灯下的人机大战棋桌' },
       quote: 'AI 的第一步很普通。普通到像一句问候。',
       body: [
         '第一局开赛时，场馆里很安静。镜头对准棋盘，也对准你的手。',
@@ -244,7 +228,6 @@ function buildScenes() {
     act: '第二幕',
     title: '道心崩塌',
     kind: 'story',
-    art: { src: './assets/story-art/broken-vow.webp', alt: '棋盒被锁进柜中，冠军杯在暗处失去光泽' },
     quote: '过去的输棋，会让你想下一盘。这一次，你开始怀疑棋盘本身。',
     body: [
       '赛后发布会上，AI 的合成声很平静：经过第一局，我们已经基本掌握了你的棋风。',
@@ -286,7 +269,6 @@ function buildScenes() {
       matchTitle: '第九局：全魂对决',
       objective: '双方全部觉醒。你必须赢下这一局，以 8 胜结束十五番棋。',
       resultText: '第九局结束，比分定格在 AI 1 : 8 你。AI 还会继续学习，但这一次，胜负已经来不及等它追上。',
-      art: { src: './assets/story-art/final-board.webp', alt: '终局赛场上，新棋盘在灯光下展开' },
       quote: '这一次，AI 必须在你创造的新棋盘里分出胜负。',
       body: [
         'AI 不再是传统棋子。它带着七枚觉醒棋魂坐到你对面。',
@@ -351,7 +333,6 @@ function makeAwakeningScene(day, slot, pieceKey) {
     day,
     slot,
     pieceKey,
-    art: { src: piece.art, alt: piece.alt },
     quote: piece.quote,
     body: [
       piece.fantasy,
@@ -561,7 +542,6 @@ function renderStoryScene(scene) {
       <span>${scene.quote}</span>
     </div>
     ${scene.scoreHidden ? '' : renderScoreStrip()}
-    ${renderStoryArt(scene)}
     ${scene.kind === 'choice' ? renderChoiceContext(scene) : `
       <div class="story-text">
         ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
@@ -590,15 +570,6 @@ function renderScoreStrip() {
       <strong>AI ${score.aiWins} : ${score.playerWins} 你</strong>
       <span>成就 ${Object.keys(state.achievements).length}</span>
     </div>
-  `;
-}
-
-function renderStoryArt(scene) {
-  if (!scene.art) return '';
-  return `
-    <figure class="story-art">
-      <img src="${scene.art.src}" alt="${scene.art.alt}" loading="lazy" decoding="async">
-    </figure>
   `;
 }
 
@@ -645,9 +616,6 @@ function renderSoulDetail(scene, piece) {
   const previous = previousKeys.map((key) => PIECE_BY_KEY[key].name).join('、') || '暂无';
   return `
     <div class="soul-detail">
-      <figure class="soul-art">
-        <img src="${piece.art}" alt="${piece.alt}" loading="lazy" decoding="async">
-      </figure>
       <div class="soul-copy">
         <div class="soul-title-row">
           <span class="choice-piece large">${piece.name}</span>
@@ -669,7 +637,7 @@ function renderSoulEmpty(scene) {
   return `
     <div class="soul-empty">
       <strong>先选一枚棋子。</strong>
-      <p>剩余 ${remaining} 枚棋魂可以回应你。点上方棋子后，下方会显示它的觉醒图、战术定位和走法能力。</p>
+      <p>剩余 ${remaining} 枚棋魂可以回应你。点上方棋子后，下方会显示它的战术定位和走法能力。</p>
     </div>
   `;
 }
@@ -974,21 +942,6 @@ function bindEvents() {
     button.addEventListener('click', () => {
       postGameCommand(button.dataset.gameCommand);
     });
-  });
-  bindStoryArt();
-}
-
-function bindStoryArt() {
-  app.querySelectorAll('.story-art img').forEach((image) => {
-    const figure = image.closest('.story-art');
-    if (!figure) return;
-    image.addEventListener('load', () => {
-      figure.hidden = false;
-    });
-    image.addEventListener('error', () => {
-      figure.hidden = true;
-    });
-    if (image.complete && image.naturalWidth > 0) figure.hidden = false;
   });
 }
 
