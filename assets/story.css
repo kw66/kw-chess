@@ -28,7 +28,10 @@
 }
 
 html {
+  width: 100%;
+  height: 100%;
   min-height: 100%;
+  overflow: hidden;
   background:
     radial-gradient(circle at 52% 24%, rgba(255, 241, 199, 0.52), transparent 30%),
     linear-gradient(rgba(94, 58, 28, 0.16) 1px, transparent 1px),
@@ -38,9 +41,23 @@ html {
 }
 
 body {
+  width: 100%;
+  height: 100%;
   min-height: 100%;
   margin: 0;
   color: var(--ink);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
 }
 
 button {
@@ -58,18 +75,27 @@ button:disabled {
 }
 
 .shell {
+  --story-stage-width: min(1280px, calc(100vw - 32px));
+  --story-stage-height: min(820px, calc(100vh - 32px));
+  --story-stage-height: min(820px, calc(100dvh - 32px));
   display: grid;
-  place-items: center;
-  width: min(100% - 24px, 860px);
-  min-height: 100vh;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  place-items: stretch;
+  width: var(--story-stage-width);
+  height: var(--story-stage-height);
+  min-height: 0;
   margin: 0 auto;
-  padding: max(18px, env(safe-area-inset-top)) 0 max(18px, env(safe-area-inset-bottom));
+  padding: 0;
 }
 
 .story-panel {
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   padding: clamp(18px, 3vw, 30px);
   border: 1px solid rgba(91, 56, 27, 0.28);
@@ -92,8 +118,11 @@ button:disabled {
 .story-content {
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 2px 4px 2px 0;
-  overflow: visible;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .story-content::-webkit-scrollbar {
@@ -253,15 +282,18 @@ blockquote {
 
 .story-game-shell {
   display: grid;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto minmax(0, auto) auto;
   align-content: start;
   gap: var(--space-3);
-  min-height: min(72vh, 720px);
+  min-height: 0;
+  height: 100%;
 }
 
 .story-game-frame {
   display: block;
-  width: 100%;
+  justify-self: center;
+  width: min(100%, calc((var(--story-stage-height) - 246px) * 600 / 664));
+  max-height: calc(var(--story-stage-height) - 246px);
   aspect-ratio: 600 / 664;
   min-height: 0;
   border: 1px solid rgba(78, 46, 22, 0.42);
@@ -287,6 +319,7 @@ blockquote {
   margin-top: var(--space-6);
   padding-top: var(--space-4);
   border-top: 1px solid rgba(105, 66, 35, 0.14);
+  flex: none;
 }
 
 .nav-btn {
@@ -350,15 +383,21 @@ blockquote {
   }
 
   .shell {
+    --story-stage-width: 100vw;
+    --story-stage-height: 100vh;
+    --story-stage-height: 100dvh;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 8px;
-    width: min(100% - 14px, 430px);
-    min-height: 100svh;
-    height: 100svh;
+    width: var(--story-stage-width);
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: var(--story-stage-height);
     place-items: stretch;
-    padding-top: max(10px, env(safe-area-inset-top));
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding:
+      max(10px, env(safe-area-inset-top))
+      7px
+      max(8px, env(safe-area-inset-bottom));
   }
 
   .mobile-story-track {
@@ -517,9 +556,10 @@ blockquote {
   }
 
   .story-panel {
-    display: block;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
-    height: auto;
+    height: 100%;
     padding: 12px;
     border-radius: 10px;
   }
@@ -529,6 +569,7 @@ blockquote {
   }
 
   .story-content {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding-right: 3px;
@@ -537,14 +578,14 @@ blockquote {
   }
 
   .story-panel.is-playing {
-    align-self: start;
-    height: auto;
+    align-self: stretch;
+    height: 100%;
     padding: 8px;
   }
 
   .story-panel.is-playing .story-content {
     display: grid;
-    height: auto;
+    height: 100%;
     padding-right: 0;
     overflow: hidden;
   }
@@ -553,13 +594,13 @@ blockquote {
     align-content: start;
     gap: 7px;
     min-height: 0;
-    height: auto;
+    height: 100%;
   }
 
   .story-game-frame {
     min-height: 0;
-    height: auto;
-    max-height: 100%;
+    width: min(calc(100% - 16px), calc((100dvh - 218px) * 600 / 664));
+    max-height: calc(100dvh - 218px);
     border-radius: 8px;
   }
 
@@ -917,7 +958,7 @@ blockquote {
 }
 
 .story-game-shell {
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto minmax(0, auto) auto;
 }
 
 .story-game-meta {
