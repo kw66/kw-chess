@@ -149,15 +149,33 @@ function buildScenes() {
     {
       id: 'prologue',
       act: '序章',
-      title: '八冠王',
+      title: '八冠王 · 上',
       kind: 'story',
       scoreHidden: true,
+      image: {
+        src: './assets/story-art/story-prologue-eight-trophies.webp',
+        alt: '棋院展柜里陈列着八座冠军奖杯',
+      },
       quote: '那时，没人相信你会输。连你自己也不信。',
       body: [
         '你第一次夺得全国冠军时，还不到十八岁。',
-        '从少年赛场到职业棋坛，你像一枚突然落进中路的重子，逼得所有人重新计算局面。',
-        '老棋手提起你时，总会停顿一下：这孩子下的不是一两步棋，他像是在和整盘棋说话。',
-        '后来第二冠、第三冠、第五冠、第八冠接连到来。八座冠军杯摆在棋院展柜里，灯光落下来，像八枚已经落定的棋子。',
+        '从少年赛场到职业棋坛，你一路赢过许多成名棋手。别人复盘你的棋时，常常发现你早在十几回合前就埋好了后手。',
+        '老棋手提起你时，总会停顿一下：这孩子不只看眼前的得失，他能从开局开始安排中盘和残局。',
+        '后来第二冠、第三冠、第五冠、第八冠接连到来。八座冠军杯摆在棋院展柜里，灯光照在杯沿上。所有人都承认，你已经是现役第一人。',
+      ],
+    },
+    {
+      id: 'prologue-future',
+      act: '序章',
+      title: '八冠王 · 下',
+      kind: 'story',
+      scoreHidden: true,
+      quote: '如果没有 AI，你本可以走到棋界历史的最高处。',
+      body: [
+        '八冠之后，所有人都在等你继续赢。你太年轻，巅峰却已经露出轮廓。',
+        '前人的纪录会被你逐个越过，后来者也很难复制这样的统治。那时的棋坛相信，只要时间往前走，你迟早会成为历史第一人。',
+        '谁能料到，AI 的时代即将到来。它会把每个局面拆成冷静的答案，下棋也即将变成一场有标准答案的背诵。',
+        '到那时，天赋和经验会被重新衡量，棋坛的秩序也将被改写。你原本清晰的未来，开始变得不再确定。',
       ],
     },
     {
@@ -168,9 +186,10 @@ function buildScenes() {
       scoreHidden: true,
       quote: '它没有师门，没有流派，也没有输棋后睡不着的夜晚。',
       body: [
-        'AI 开始击败业余高手和职业新锐时，棋坛并没有轻视它。大家承认它算得快、记得多，也承认它的训练永远不会累。',
-        '主流棋类 AI 的方法并不神秘：搜索尽可能多的变化，再用局面打分判断哪条路更好。残局库、开局库、神经网络评估，都是为了把“看得远”和“看得准”叠在一起。',
-        '但中国象棋有数百年的技术积累。人们相信，真正站在山顶的棋手，不只是计算器。',
+        'AI 不是新鲜话题。很多年前，棋手们就已经用软件查谱、拆招、复盘。',
+        '大家承认它算得快、记得多，也承认它的训练永远不会累。可那时，多数人仍觉得机器只是把变化搜得更深。',
+        '中国象棋有数百年的技术积累。人们相信，真正站在山顶的棋手，不只是计算器。',
+        '后来，AI 开始击败普通棋迷、业余高手和职业新锐。质疑慢慢变成不安。',
         '它可以赢很多人。可要赢你？那似乎还是另一件事。',
       ],
     },
@@ -180,43 +199,48 @@ function buildScenes() {
       title: '人机大战',
       kind: 'story',
       scoreHidden: true,
+      image: {
+        src: './assets/story-art/story-public-screen-cheering.webp',
+        alt: '白天城市广场的大屏幕直播人类棋手与 AI 机器人进行中国象棋人机大战，观众为人类加油',
+      },
       quote: '当人类棋手已经很难给你压力时，你也想知道，AI 能把你逼到哪里。',
       body: [
         '你已经很久没有遇到真正陌生的对手。人类棋手的强弱、风格、习惯，你大多能在几十回合里摸清。',
-        '所以当人机大战被正式提出时，你心里并不只有压力，也有一丝久违的期待。',
-        '比赛被包装成一次技术检验：让最强的人类棋手与最新一代象棋 AI 对弈，看看机器是否真的能越过人类经验的顶点。',
-        '赛制是十五局八胜。一天一盘。人类可以休息、复盘、准备第二天；AI 的夜晚，则会继续训练。',
+        '可 AI 正在赢下越来越多的人。它究竟只是搜索更深，还是已经摸到人类经验的边界，棋坛需要一个答案。',
+        '于是人机大战被正式提出：让最强的人类棋手与最新一代象棋 AI 对弈，看看机器是否真的能越过人类经验的顶点。',
+        '赛制是十五局八胜。一天一盘。',
         '发布会上，你说会认真对待。心里却很平静：如果它真能带来挑战，那也许是件好事。',
       ],
     },
     {
       id: 'match-1-before',
       act: '第二幕',
-      title: '第一局 上',
+      title: '第一局 · 上',
       kind: 'story',
       scoreHidden: true,
       quote: 'AI 的第一步很普通。普通到像一句问候。',
       body: [
         '第一局开赛时，场馆里很安静。镜头对准棋盘，也对准你的手。',
-        'AI 的前十几个回合没有任何炫技。它没有冒险，没有挑衅，只是把每一个子都放在最稳的位置。',
-        '外行看不出危险，只觉得局面焦灼。可你知道，焦灼是假象。它没有急着扩大优势，是因为最稳的打法已经足够压住你。',
+        'AI 的前十几回合没有任何奇招。它不抢攻，不冒险，也不故意制造复杂局面，只是把每一枚棋子放到最稳的位置。',
+        '外行看不出危险，只觉得局面平淡。可你知道，平淡不代表安全。',
+        '它没有急着扩大优势，是因为最稳的走法已经足够压住你。',
       ],
     },
     {
       id: 'match-1',
       act: '第二幕',
-      title: '第一局 下',
+      title: '第一局 · 下',
       kind: 'match',
       day: 1,
       scoreHidden: true,
       matchTitle: '第一局：旧棋的终点',
-      objective: '这一局会很快让你看见差距。你可以亲自下完，也可以认输进入转折。',
-      resultText: '第一局结束，比分来到 AI 1 : 0 你。你没有投子，只是看着最后一条路也被算完。',
+      objective: '这一局没有棋魂，也没有新规则。你可以亲自下完，也可以认输进入转折。',
+      resultText: '第一局结束，比分来到 AI 1 : 0。你没有投子，只是看着最后一条路也被算完。',
       quote: '它滴水不漏。你第一次发现，自己连制造混乱的机会都没有。',
       body: [
         '中盘之后，你开始主动变招。弃子、牵制、兑子、转入复杂残局，每一条你熟悉的路都被它提前等住。',
-        'AI 占优后没有贪胜。它选择最稳健的推进，把你的反击一点点压窄，像用手掌按住一盏将要熄灭的灯。',
-        '这不是一盘普通的输棋。你第一次感觉到，自己熟悉了一生的棋盘，也许已经走到了尽头。',
+        'AI 占优后没有贪胜。它选择最稳的推进，把你的反击一点点压窄。',
+        '这不是一盘普通的输棋。你第一次感到，自己熟悉了一生的棋盘，也许已经走到了尽头。',
       ],
     },
   ];
@@ -251,7 +275,7 @@ function buildScenes() {
     scenes.push({
       id: 'before-final',
       act: '终幕',
-      title: '第九局前夜',
+      title: '第九局 · 前夜',
       kind: 'story',
       quote: '比分是 AI 1 : 7 你。只差一局，也只剩一夜。',
       body: [
@@ -462,7 +486,7 @@ function render() {
   const scene = scenes[state.currentScene];
   const activeMatch = isCurrentMatchActive(scene);
   app.innerHTML = `
-    <main class="shell">
+    <main class="shell${activeMatch ? ' is-playing' : ''}">
       ${renderMobileStoryTrack(scenes)}
       <article class="story-panel kind-${scene.kind}${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
@@ -480,17 +504,16 @@ function render() {
 }
 
 function renderSceneActions(scene, scenes) {
+  const isEnding = scene.kind === 'ending';
+  const primaryDisabled = !isEnding && scene.kind === 'choice' && !state.selected[scene.slot];
   return `
     <div class="scene-actions">
       <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
       ${
-        scene.kind === 'ending'
+        isEnding
           ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
-          : `<button type="button" class="nav-btn primary" data-action="complete" ${(scene.kind === 'choice' && !state.selected[scene.slot]) ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>`
+          : `<button type="button" class="nav-btn primary" data-action="complete" ${primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>`
       }
-      <button type="button" class="nav-btn secondary" data-action="next" ${
-        state.currentScene < state.maxScene && state.currentScene < scenes.length - 1 ? '' : 'disabled'
-      }>下一段</button>
     </div>
   `;
 }
@@ -542,7 +565,8 @@ function renderStoryScene(scene) {
       <span>${scene.quote}</span>
     </div>
     ${scene.scoreHidden ? '' : renderScoreStrip()}
-    ${scene.kind === 'choice' ? renderChoiceContext(scene) : `
+    ${renderSceneImage(scene)}
+    ${scene.kind === 'choice' ? renderChoiceContext(scene) : scene.kind === 'match' ? '' : `
       <div class="story-text">
         ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
       </div>
@@ -550,6 +574,15 @@ function renderStoryScene(scene) {
     ${scene.kind === 'choice' ? renderChoice(scene) : ''}
     ${scene.kind === 'awakening' ? renderAbility(scene) : ''}
     ${scene.kind === 'match' ? renderMatchText(scene) : ''}
+  `;
+}
+
+function renderSceneImage(scene) {
+  if (!scene.image) return '';
+  return `
+    <figure class="story-visual">
+      <img src="${escapeAttr(scene.image.src)}" alt="${escapeAttr(scene.image.alt || '')}" loading="eager" decoding="async">
+    </figure>
   `;
 }
 
@@ -670,7 +703,7 @@ function renderMatchText(scene) {
   return `
     <div class="story-text match-text">
       ${completed ? '' : renderMatchBrief(scene)}
-      ${completed ? `<p>${scene.resultText}</p>` : ''}
+      ${completed ? `<p>${scene.resultText}</p>${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index + 1)}</p>`).join('')}` : ''}
       ${!completed && retryText ? `<p class="retry-text">${retryText}</p>` : ''}
     </div>
   `;
@@ -736,8 +769,8 @@ function getMatchBrief(scene) {
 
 function getPrimaryActionLabel(scene) {
   if (scene.kind === 'choice') return state.selected[scene.slot] ? '确认觉醒' : '选择棋魂';
-  if (scene.kind !== 'match') return '继续';
-  if (isMatchCompleted(scene)) return '继续';
+  if (scene.kind !== 'match') return '下一段';
+  if (isMatchCompleted(scene)) return '下一段';
   return scene.day === 1 ? '观看第一局' : '开始对局';
 }
 
