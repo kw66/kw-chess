@@ -363,6 +363,24 @@ blockquote {
   object-fit: contain;
 }
 
+.story-visual.soul-awakening-visual img {
+  width: min(100%, 300px);
+  height: auto;
+  max-height: none;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.story-visual.soul-awakening-visual {
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .story-text p {
   color: #3b2b1e;
   font-size: clamp(14px, 1.8vw, 15px);
@@ -389,6 +407,16 @@ blockquote {
   border: 1px solid rgba(105, 66, 35, 0.16);
   border-radius: 8px;
   background: rgba(255, 249, 231, 0.48);
+}
+
+.match-inline-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-4);
+}
+
+.match-inline-actions .nav-btn {
+  min-width: 148px;
 }
 
 .match-brief {
@@ -462,18 +490,28 @@ blockquote {
 
 .story-game-shell {
   display: grid;
-  grid-template-rows: auto auto minmax(0, auto) auto;
-  align-content: start;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 360px);
+  align-items: stretch;
   gap: var(--space-3);
   min-height: 0;
   height: 100%;
 }
 
+.story-game-board {
+  display: grid;
+  grid-template-rows: minmax(0, auto) auto;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .story-game-frame {
   display: block;
-  justify-self: center;
-  width: min(100%, calc((var(--story-stage-height) - 246px) * 600 / 664));
-  max-height: calc(var(--story-stage-height) - 246px);
+  width: min(100%, 540px, calc((var(--story-stage-height) - 236px) * 600 / 664));
+  max-height: calc(var(--story-stage-height) - 236px);
   aspect-ratio: 600 / 664;
   min-height: 0;
   border: 1px solid rgba(78, 46, 22, 0.42);
@@ -484,10 +522,24 @@ blockquote {
     0 12px 28px rgba(56, 33, 15, 0.2);
 }
 
+.story-game-side {
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 75, 35, 0.38) transparent;
+}
+
 .story-game-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-3);
+  width: min(100%, 540px, calc((var(--story-stage-height) - 236px) * 600 / 664));
 }
 
 .scene-actions {
@@ -773,25 +825,38 @@ blockquote {
     display: grid;
     height: 100%;
     padding-right: 0;
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   .story-game-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, auto) auto;
     align-content: start;
     gap: 7px;
     min-height: 0;
     height: 100%;
   }
 
+  .story-game-board {
+    overflow: visible;
+  }
+
   .story-game-frame {
     min-height: 0;
-    width: min(calc(100% - 16px), calc((100dvh - 218px) * 600 / 664));
-    max-height: calc(100dvh - 218px);
+    width: min(100%, calc((100dvh - 358px) * 600 / 664));
+    max-height: calc(100dvh - 358px);
     border-radius: 8px;
+  }
+
+  .story-game-side {
+    grid-template-rows: auto auto auto auto;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .story-game-actions {
     gap: 7px;
+    width: min(100%, calc((100dvh - 358px) * 600 / 664));
   }
 
   .desktop-heading {
@@ -863,6 +928,11 @@ blockquote {
 
   .story-visual img {
     max-height: min(22dvh, 145px);
+  }
+
+  .story-visual.soul-awakening-visual img {
+    width: min(56dvw, 188px);
+    max-height: none;
   }
 
   .story-text p {
@@ -1025,6 +1095,16 @@ blockquote {
   font-weight: 950;
 }
 
+.choice-piece-glyph {
+  display: block;
+  line-height: 1;
+  transform: translate(0.02em, -0.01em);
+}
+
+.choice-piece[data-piece="帅"] .choice-piece-glyph {
+  transform: translate(0.07em, 0.03em);
+}
+
 .choice-piece.large {
   width: 42px;
   height: 42px;
@@ -1061,10 +1141,32 @@ blockquote {
 
 .soul-detail {
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 0.78fr) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: stretch;
   margin-top: var(--space-4);
+}
+
+.soul-preview {
+  min-width: 0;
+  width: min(100%, 240px);
+  margin: 0;
+  justify-self: center;
+  overflow: visible;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.soul-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
 }
 
 .soul-copy {
@@ -1090,7 +1192,7 @@ blockquote {
   line-height: 1.2;
 }
 
-.soul-title-row span {
+.soul-title-row div > span {
   display: block;
   margin-top: 3px;
   color: #6b4a30;
@@ -1110,6 +1212,35 @@ blockquote {
 
 .soul-copy b {
   color: var(--red-deep);
+}
+
+.soul-rule-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soul-rule-list li {
+  position: relative;
+  padding-left: 16px;
+  color: #4d3928;
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.46;
+}
+
+.soul-rule-list li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.66em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 2px rgba(159, 32, 25, 0.1);
 }
 
 .soul-warning,
@@ -1151,10 +1282,6 @@ blockquote {
   margin-top: 2px;
 }
 
-.story-game-shell {
-  grid-template-rows: auto auto minmax(0, auto) auto;
-}
-
 .story-game-meta {
   display: flex;
   gap: var(--space-3);
@@ -1171,6 +1298,68 @@ blockquote {
 
 .story-game-meta strong {
   color: var(--red-deep);
+}
+
+.story-side-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(105, 66, 35, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 249, 231, 0.58);
+  color: #4d3928;
+}
+
+.story-side-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: #2d1d12;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.story-side-title strong {
+  color: var(--red-deep);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.story-side-title small {
+  justify-self: end;
+  color: #806044;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.story-side-title b {
+  justify-self: center;
+  padding: 4px 7px;
+  border: 1px solid rgba(159, 32, 25, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 232, 168, 0.46);
+  color: var(--red-deep);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.story-winrate-track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(65, 44, 28, 0.18);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(143, 35, 28, 0.18), rgba(43, 91, 126, 0.34));
+}
+
+.story-player-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b72e22, #e0a83e);
+  transition: width 240ms ease;
 }
 
 .story-live-hint {
@@ -1193,6 +1382,10 @@ blockquote {
 
 .story-game-actions.four {
   grid-template-columns: repeat(4, 1fr);
+}
+
+.story-game-actions.five {
+  grid-template-columns: repeat(5, 1fr);
 }
 
 @media (max-width: 560px) {
@@ -1292,8 +1485,16 @@ blockquote {
     margin-top: 10px;
   }
 
+  .soul-preview img {
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+  }
+
+  .soul-preview {
+    width: min(42dvw, 140px);
+  }
+
   .soul-copy {
-    order: -1;
     gap: 8px;
   }
 
@@ -1301,11 +1502,27 @@ blockquote {
     font-size: 15px;
   }
 
-  .soul-title-row span,
+  .soul-title-row div > span,
   .soul-copy p,
   .soul-empty p {
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .soul-rule-list {
+    gap: 3px;
+  }
+
+  .soul-rule-list li {
+    padding-left: 13px;
+    font-size: 11.5px;
+    line-height: 1.38;
+  }
+
+  .soul-rule-list li::before {
+    left: 1px;
+    width: 5px;
+    height: 5px;
   }
 
   .soul-belief {
@@ -1323,6 +1540,24 @@ blockquote {
 
   .story-game-meta {
     padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .story-side-card {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .story-side-title {
+    font-size: 12px;
+  }
+
+  .story-side-title strong {
+    font-size: 18px;
+  }
+
+  .story-side-title b,
+  .story-live-hint {
     font-size: 12px;
   }
 
@@ -1371,5 +1606,9 @@ blockquote {
 
   .story-game-actions.four {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .story-game-actions.five {
+    grid-template-columns: repeat(5, 1fr);
   }
 }

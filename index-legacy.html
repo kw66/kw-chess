@@ -549,6 +549,54 @@ function cloneBoard(b) {
   }));
 }
 
+function cloneGameStats(stats) {
+  return {
+    ...stats,
+    typesMoved: [...(stats.typesMoved || [])],
+    typesCaptured: [...(stats.typesCaptured || [])],
+    redKillsByType: { ...(stats.redKillsByType || {}) },
+    redSurvivalByType: Object.fromEntries(
+      STAT_TYPES.map(type => {
+        const v = stats.redSurvivalByType?.[type] || { moves: 0, games: 0 };
+        return [type, { moves: v.moves || 0, games: v.games || 0 }];
+      })
+    ),
+  };
+}
+
+function createHistorySnapshot() {
+  return {
+    board: cloneBoard(game.board),
+    turn: game.turn,
+    captured: game.captured.map(c => ({ ...c })),
+    lastMove: game.lastMove ? { ...game.lastMove } : null,
+    stats: cloneGameStats(gameStats),
+    moveLogSimple: moveLogSimple.map(m => ({ ...m })),
+    wrHistory: [...wrHistory],
+    logMoveNum,
+    lastRedPct,
+    lastAdvantage,
+    redStartingCountsByType: redStartingCountsByType ? { ...redStartingCountsByType } : null,
+  };
+}
+
+function restoreHistorySnapshot(snapshot) {
+  game.board = cloneBoard(snapshot.board);
+  game.turn = snapshot.turn;
+  game.captured = (snapshot.captured || []).map(c => ({ ...c }));
+  game.lastMove = snapshot.lastMove ? { ...snapshot.lastMove } : null;
+  if (snapshot.stats) Object.assign(gameStats, cloneGameStats(snapshot.stats));
+  moveLogSimple = (snapshot.moveLogSimple || []).map(m => ({ ...m }));
+  wrHistory.length = 0;
+  wrHistory.push(...(snapshot.wrHistory && snapshot.wrHistory.length ? snapshot.wrHistory : [0.5]));
+  logMoveNum = Math.max(0, Math.trunc(Number(snapshot.logMoveNum) || 0));
+  lastRedPct = Math.max(0, Math.min(100, Math.trunc(Number(snapshot.lastRedPct) || 50)));
+  lastAdvantage = snapshot.lastAdvantage || '均势';
+  redStartingCountsByType = snapshot.redStartingCountsByType ? { ...snapshot.redStartingCountsByType } : redStartingCountsByType;
+  const cntEl = document.getElementById('log-move-count');
+  if (cntEl) cntEl.textContent = logMoveNum + ' 步';
+}
+
 // ─────────────────────────────────────────────
 //  层数差战斗结算
 //  atk: 攻击方格 {type,owner,layer}  at: 目标格
@@ -1865,13 +1913,13 @@ const PIECE_HINTS_CLASSIC = {
   P: '兵：未过河只能前进；过河后可向前、左、右走一步。',
 };
 const PIECE_HINTS_KEWANG = {
-  R: '车觉醒：横竖走；冲到友军前一格会把它推出去，同车可合体。',
-  H: '马觉醒：十二方跳；踩到己方棋子可继续跳，不受蹩腿限制。',
-  C: '炮觉醒：横竖走；可翻过连续炮架，打炮架后的敌子。',
-  B: '相觉醒：斜跳两格，可过河；落点向上下左右打出地震波。',
-  A: '仕觉醒：斜走一格，可出宫；落点向四条斜线打出 X 形光波。',
-  K: '帅觉醒：九宫内八向一步；吃子会成长，也可被车送出宫。',
-  P: '兵觉醒：上下左右一步；同兵自动合体，双击可自爆。',
+  R: '车觉醒：横竖直线移动；同线隔空遇到己方非车棋子时，可停在其前一格并将其推出。',
+  H: '马觉醒：可走“日”字位置或直线两格位置；不受马腿限制，己方非马棋子可作为继续计算的中继位置。',
+  C: '炮觉醒：横竖移动；可选择连续棋子作为炮架，越过炮架后落空点或吃第一枚敌子。',
+  B: '相觉醒：斜向两格，不受象眼限制，可过河；移动或吃子落点会沿上下左右产生十字地震。',
+  A: '仕觉醒：斜向一格，可离宫过河；移动或吃子落点会沿四条斜线产生 X 形光波。',
+  K: '帅觉醒：九宫内八向一格，不能主动离宫；吃子后加 1 层，同列无遮挡可远距吃未觉醒敌将帅。',
+  P: '兵觉醒：上下左右一格；己方兵叠层后自动合体，双击可按当前层数范围自爆。',
 };
 
 function postPieceHint(pieceType, hint, upgraded = false) {
@@ -2028,7 +2076,7 @@ async function executeMove(move) {
   if (typeof AI !== 'undefined') AI.abortPonder();
   aiState.pondering = false;
 
-  game.history.push({ board: cloneBoard(game.board), turn: game.turn, captured: [...game.captured], lastMove: game.lastMove });
+  game.history.push(createHistorySnapshot());
 
   anim.playing = true;
   const srcCol = game.selected.col, srcRow = game.selected.row;
@@ -2200,7 +2248,7 @@ async function executeMove(move) {
     if (enemyKilled.length > 0) {
       _addToSet(gameStats.typesCaptured, piece.type); // 记录发起吃子的红方棋型
       gameStats.redKillsByType[piece.type] = (gameStats.redKillsByType[piece.type] || 0) + enemyKilled.length;
-      // 连踩链：马一次走棋击杀多个
+      // 历史字段：当前马只在最终落点结算吃子，这里保留累计兼容旧统计结构
       if (piece.type === TYPE.HORSE) {
         gameStats.maxChainKills = Math.max(gameStats.maxChainKills, enemyKilled.length);
       }
@@ -2303,8 +2351,8 @@ function undoMove() {
   if (anim.playing || !game.history.length) return;
   abortAIThinking();
   const prev = game.history.pop();
-  game.board = prev.board;
-  game.turn  = prev.turn;
+  logUndo();
+  restoreHistorySnapshot(prev);
   game.phase = 'select';
   game.selected = null;
   game.chosenLayers = null;
@@ -2314,12 +2362,8 @@ function undoMove() {
   game.gameOver = false;
   game.winner = null;
   game.isDraw = false;
-  game.captured = prev.captured || [];
-  game.lastMove = prev.lastMove || null;
   game.hoveredMoveIdx = null;
   game.kingDanger = assessKingDanger(game.board, game.turn);
-  if (moveLogSimple.length) moveLogSimple.pop();
-  logUndo();
   clearPieceHint();
   updateUI(); updateCapturedDisplay(); render();
   updateScoreDisplay(false);
@@ -2338,7 +2382,9 @@ function undoMove() {
 
 function undoCommand() {
   if (anim.playing || !game.history.length) return;
-  const steps = aiState.enabled && game.turn === RED && game.history.length >= 2 ? 2 : 1;
+  const lastSnapshot = game.history[game.history.length - 1];
+  const lastMover = lastSnapshot?.turn;
+  const steps = aiState.enabled && lastMover === aiState.side && game.history.length >= 2 ? 2 : 1;
   for (let i = 0; i < steps; i++) {
     if (!game.history.length) break;
     undoMove();
@@ -2503,11 +2549,7 @@ function render() {
 
   // 最后一步标记
   if (game.lastMove && !anim.playing) {
-    const { fromCol, fromRow, toCol, toRow } = game.lastMove;
-    for (const [mc, mr] of [[fromCol,fromRow],[toCol,toRow]]) {
-      ctx.fillStyle = '#f39c1233';
-      ctx.fillRect(cx(mc)-CELL/2, cy(mr)-CELL/2, CELL, CELL);
-    }
+    drawLastMoveUnderlay(game.lastMove);
   }
 
   // 走点高亮（三色 + 叠层蓝色区分）
@@ -2624,6 +2666,11 @@ function render() {
 
   // 动画：滑动棋子
   if (anim.slide) drawPieceAt(anim.slide.x, anim.slide.y, anim.slide.piece, false);
+
+  // 最后一步角标覆盖在棋子外缘，不遮盖棋面文字。
+  if (game.lastMove && !anim.playing) {
+    drawLastMoveOverlay(game.lastMove);
+  }
 
   // 动画：马路径线
   if (anim.pathLines.length) {
@@ -2807,6 +2854,55 @@ function corner(x,y,s) {
   }
 }
 
+function drawLastMoveUnderlay(move) {
+  const cells = [
+    [move.fromCol, move.fromRow],
+    [move.toCol, move.toRow],
+  ];
+  for (const [mc, mr] of cells) {
+    ctx.fillStyle = '#ffd8612d';
+    ctx.fillRect(cx(mc) - CELL / 2 + 2, cy(mr) - CELL / 2 + 2, CELL - 4, CELL - 4);
+  }
+}
+
+function drawLastMoveOverlay(move) {
+  drawLastMoveCorners(move.fromCol, move.fromRow, '#9a6a18', 2);
+  drawLastMoveCorners(move.toCol, move.toRow, '#c6281d', 3);
+}
+
+function drawLastMoveCorners(col, row, color, width) {
+  const x = cx(col);
+  const y = cy(row);
+  const outer = CELL / 2 - 5;
+  const len = 13;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = width + 3;
+  ctx.strokeStyle = '#fff4b8';
+  drawCornerStrokes(x, y, outer, len);
+  ctx.lineWidth = width;
+  ctx.strokeStyle = color;
+  drawCornerStrokes(x, y, outer, len);
+  ctx.restore();
+}
+
+function drawCornerStrokes(x, y, outer, len) {
+  const signs = [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ];
+  for (const [sx, sy] of signs) {
+    ctx.beginPath();
+    ctx.moveTo(x + sx * outer, y + sy * (outer - len));
+    ctx.lineTo(x + sx * outer, y + sy * outer);
+    ctx.lineTo(x + sx * (outer - len), y + sy * outer);
+    ctx.stroke();
+  }
+}
+
 // 在任意坐标绘制棋子（动画滑动用）
 function drawPieceAt(x, y, piece, selected) {
   if (selected) {
@@ -2952,12 +3048,13 @@ function addLog(text, isSystem) {
 function logUndo() {
   const el = document.getElementById('log-moves');
   if (!el) return;
-  // 移除最新一条（prepend 到了顶部，firstChild 就是最新）
-  const first = el.firstElementChild;
-  if (first && first.dataset.n) {
-    el.removeChild(first);
-    logMoveNum--;
-    if (wrHistory.length > 1) wrHistory.pop();
+  // 移除最新一步棋。终局系统消息也 prepend 在顶部，需要先清掉。
+  while (el.firstElementChild && !el.firstElementChild.dataset.n) {
+    el.removeChild(el.firstElementChild);
+  }
+  const node = el.firstElementChild;
+  if (node) {
+    el.removeChild(node);
     const cntEl = document.getElementById('log-move-count');
     if (cntEl) cntEl.textContent = logMoveNum + ' 步';
   }
@@ -3011,6 +3108,19 @@ function updateScoreDisplay(push, nextMover) {
   drawWinRateChart();
   lastRedPct = redPct;
   lastAdvantage = advantageText(rawScore);
+  if (_LEVEL_ID && window.self !== window.top) {
+    try {
+      window.parent.postMessage({
+        type: 'game-progress',
+        stats: { ...gameStats },
+        redPct,
+        advantage: lastAdvantage,
+        capturedRed: game.captured.filter(c => c.owner === RED).map(c => CHARS[RED][c.type]),
+        capturedBlack: game.captured.filter(c => c.owner === BLACK).map(c => CHARS[BLACK][c.type]),
+        moves: moveLogSimple.slice(-12),
+      }, '*');
+    } catch(e) {}
+  }
 }
 
 function drawWinRateChart() {
