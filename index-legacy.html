@@ -419,6 +419,7 @@ const _LEVEL_ID  = parseInt(_urlParams.get('levelId')) || 0;
 const _AI_ON     = _urlParams.get('ai') === '1';
 const _AI_TIME   = parseInt(_urlParams.get('aiTime')) || 500;
 const _AI_STRENGTH = _urlParams.get('aiStrength') || '';
+const _AI_SIDE_PARAM = (_urlParams.get('aiSide') || 'black').toLowerCase();
 // 模式：classic（传统）/ mixed（混合：部分棋子升级）/ kw（科王：全升级）
 const _MODE      = _urlParams.get('mode')
   || (_urlParams.get('classic') === '1' ? 'classic' : 'kw');
@@ -463,6 +464,8 @@ const gameStats = {
   complete: false,
   outcome: null,
   win: false,
+  playerSide: null,
+  aiSide: null,
 };
 function _addToSet(arr, val) { if (!arr.includes(val)) arr.push(val); }
 let lastRedPct = 50;
@@ -485,6 +488,19 @@ const H = PAD*2 + CELL*(ROWS-1);
 const TYPE = { KING:'K', ADVISOR:'A', BISHOP:'B', HORSE:'H', ROOK:'R', CANNON:'C', PAWN:'P' };
 const RED = 'red', BLACK = 'black';
 const enemy = o => o === RED ? BLACK : RED;
+const _AI_SIDE = _AI_SIDE_PARAM === RED ? RED : BLACK;
+
+function getPlayerSide() {
+  return (_AI_ON || aiState.enabled) ? enemy(aiState.side) : RED;
+}
+
+function isAITurn() {
+  return aiState.enabled && !game.gameOver && game.turn === aiState.side;
+}
+
+function isBoardFlipped() {
+  return getPlayerSide() === BLACK;
+}
 
 // ─────────────────────────────────────────────
 //  棋盘数据结构
@@ -2017,7 +2033,10 @@ function postGameStatus() {
       roundText: getRoundText(),
       message: mg?.textContent || '',
       aiEnabled: !!aiState.enabled,
+      aiSide: aiState.side,
+      playerSide: getPlayerSide(),
       aiThinking: !!aiState.thinking,
+      aiTurn: isAITurn(),
       aiTime: aiState.timeLimit,
       aiStrength: aiState.strength || '',
       gameOver: !!game.gameOver,
@@ -2027,6 +2046,7 @@ function postGameStatus() {
 
 // 单击选中棋子：直接以顶组层数进入选目标阶段（不显示自爆）
 function selectPiece(col, row) {
+  if (isAITurn()) return;
   const piece = game.board[row][col];
   if (!piece || piece.owner !== game.turn) return;
   game.selected = { col, row };
@@ -2430,6 +2450,8 @@ function restartGame() {
   gameStats.complete = false;
   gameStats.outcome = null;
   gameStats.win = false;
+  gameStats.playerSide = null;
+  gameStats.aiSide = null;
   resetRedSurvivalStats();
   moveLogSimple = [];
   logReset();
@@ -2467,8 +2489,31 @@ function canvasXY(e) {
   return { px: (e.clientX - rect.left) * sx, py: (e.clientY - rect.top) * sy };
 }
 
-const cx = col => PAD + col * CELL;
-const cy = row => PAD + row * CELL;
+const cx = col => PAD + (isBoardFlipped() ? COLS - 1 - col : col) * CELL;
+const cy = row => PAD + (isBoardFlipped() ? ROWS - 1 - row : row) * CELL;
+const boardX = px => Math.round((px - PAD) / CELL);
+const boardY = py => Math.round((py - PAD) / CELL);
+function pointToBoard(px, py) {
+  const viewCol = boardX(px);
+  const viewRow = boardY(py);
+  return {
+    col: isBoardFlipped() ? COLS - 1 - viewCol : viewCol,
+    row: isBoardFlipped() ? ROWS - 1 - viewRow : viewRow,
+  };
+}
+
+function boardCellRect(col1, row1, col2, row2) {
+  const x1 = cx(col1);
+  const x2 = cx(col2);
+  const y1 = cy(row1);
+  const y2 = cy(row2);
+  return {
+    x: Math.min(x1, x2) - CELL / 2,
+    y: Math.min(y1, y2) - CELL / 2,
+    w: Math.abs(x2 - x1) + CELL,
+    h: Math.abs(y2 - y1) + CELL,
+  };
+}
 
 const CHARS = {
   [RED]:   { K:'帅', A:'仕', B:'相', H:'马', R:'车', C:'炮', P:'兵' },
@@ -2704,7 +2749,8 @@ function render() {
     const topRow = anim.palaceGlow.owner === RED ? 7 : 0;
     ctx.strokeStyle = '#27ae60' + a;
     ctx.lineWidth = 4;
-    ctx.strokeRect(cx(3)-CELL/2, cy(topRow)-CELL/2, CELL*3, CELL*3);
+    const rect = boardCellRect(3, topRow, 5, topRow + 2);
+    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
   }
 
   // 选层/自爆环（仅双击流程显示）
@@ -3085,10 +3131,9 @@ function advantageText(score) {
 }
 
 function updateScoreDisplay(push, nextMover) {
-  // quickEval 使用静态搜索解算吃子链，避免单步吃子后分数虚高
-  // nextMover = 下一个走棋方；未指定时用 game.turn（undo/重启场景已正确）
-  const mover = (nextMover !== undefined) ? nextMover : game.turn;
-  const rawScore = AI.quickEval(game.board, mover);
+  // 显示用评估必须固定为红方视角，不把"当前谁走"的战术搜索先手权直接换算成胜率。
+  // quickEval 仍保留给 AI 搜索；这里用静态评估避免对称开局被显示成 70%+。
+  const rawScore = AI.evaluate(game.board, RED);
   const wr = scoreToWR(rawScore);
   if (push !== false) wrHistory.push(wr);
 
@@ -3185,11 +3230,14 @@ function drawWinRateChart() {
 // 鼠标移动：悬停检测 + 光标样式
 canvas.addEventListener('mousemove', e => {
   if (anim.playing) return;
+  if (isAITurn()) {
+    canvas.style.cursor = 'default';
+    return;
+  }
   const { px, py } = canvasXY(e);
 
   // 计算鼠标对应的棋盘格
-  const hCol = Math.round((px - PAD) / CELL);
-  const hRow = Math.round((py - PAD) / CELL);
+  const { col: hCol, row: hRow } = pointToBoard(px, py);
   const onGrid = inBoard(hCol, hRow) && Math.sqrt((px-cx(hCol))**2+(py-cy(hRow))**2) <= CELL*0.55;
 
   // pickLayer阶段：扇区悬停
@@ -3237,6 +3285,7 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('click', e => {
   if (anim.playing || game.gameOver) return;
+  if (isAITurn()) return;
   const { px, py } = canvasXY(e);
 
   // ── 阶段1：选层/自爆环 ──
@@ -3279,8 +3328,7 @@ canvas.addEventListener('click', e => {
   // ── 阶段2：选目标 ──
   if (game.phase === 'pickTarget' && game.selected) {
     // 普通格点判断
-    const col = Math.round((px - PAD) / CELL);
-    const row = Math.round((py - PAD) / CELL);
+    const { col, row } = pointToBoard(px, py);
     if (inBoard(col, row)) {
       const ddx = px - cx(col), ddy = py - cy(row);
       if (Math.sqrt(ddx*ddx+ddy*ddy) <= CELL*0.55) {
@@ -3310,8 +3358,7 @@ canvas.addEventListener('click', e => {
   }
 
   // ── 阶段0：未选中，选棋子 ──
-  const col = Math.round((px - PAD) / CELL);
-  const row = Math.round((py - PAD) / CELL);
+  const { col, row } = pointToBoard(px, py);
   if (!inBoard(col, row)) return;
   const ddx = px - cx(col), ddy = py - cy(row);
   if (Math.sqrt(ddx*ddx+ddy*ddy) > CELL*0.55) return;
@@ -3329,10 +3376,10 @@ canvas.addEventListener('click', e => {
 // ─────────────────────────────────────────────
 canvas.addEventListener('dblclick', e => {
   if (_CLASSIC || anim.playing || game.gameOver) return; // 传统模式无双击特殊操作
+  if (isAITurn()) return;
   const { px, py } = canvasXY(e);
 
-  const col = Math.round((px - PAD) / CELL);
-  const row = Math.round((py - PAD) / CELL);
+  const { col, row } = pointToBoard(px, py);
   if (!inBoard(col, row)) return;
   const ddx = px - cx(col), ddy = py - cy(row);
   if (Math.sqrt(ddx*ddx + ddy*ddy) > CELL * 0.55) return;
@@ -3398,7 +3445,7 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 //  AI 引擎
 // ─────────────────────────────────────────────
-const aiState = { enabled: false, side: BLACK, thinking: false, timeLimit: 5000, strength: _AI_STRENGTH, pondering: false, ponderTimer: null, searchToken: 0 };
+const aiState = { enabled: false, side: _AI_SIDE, thinking: false, timeLimit: 5000, strength: _AI_STRENGTH, pondering: false, ponderTimer: null, searchToken: 0 };
 
 const AI = (() => {
   // ── 配置 ──
@@ -4945,9 +4992,12 @@ window.addEventListener('message', (e) => {
 // ─────────────────────────────────────────────
 function _reportGameEnd() {
   if (!_LEVEL_ID) return;  // 不在关卡模式下（独立打开）则跳过
-  gameStats.win = game.winner === RED;
+  const playerSide = getPlayerSide();
+  gameStats.playerSide = playerSide;
+  gameStats.aiSide = aiState.enabled ? aiState.side : null;
+  gameStats.win = !game.isDraw && game.winner === playerSide;
   gameStats.complete = true;
-  gameStats.outcome = game.isDraw ? 'draw' : game.winner === RED ? 'win' : 'loss';
+  gameStats.outcome = game.isDraw ? 'draw' : game.winner === playerSide ? 'win' : 'loss';
   finalizeRedSurvivalStats();
   try {
     window.parent.postMessage({ type: 'game-end', stats: { ...gameStats } }, '*');

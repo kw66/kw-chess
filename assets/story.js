@@ -662,7 +662,7 @@ function renderSceneActions(scene, scenes) {
   const primaryDisabled = !isEnding
     && scene.kind === 'choice'
     && isChoiceEditing(scene.slot)
-    && !previewKey;
+    && (!previewKey || !canUseSoulAtSlot(scene.slot, previewKey));
   return `
     <div class="scene-actions">
       <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
@@ -774,6 +774,7 @@ function renderChoice(scene) {
   const selectedPiece = selectedKey ? PIECE_BY_KEY[selectedKey] : null;
   const confirmed = state.selected[scene.slot] === selectedKey;
   const editing = isChoiceEditing(scene.slot);
+  const usable = !selectedKey || canUseSoulAtSlot(scene.slot, selectedKey);
   const heading = selectedPiece
     ? `${confirmed ? '已选择' : (editing ? '改选' : '预览')}：${selectedPiece.name}魂`
     : '今天只亮一枚棋魂';
@@ -781,7 +782,7 @@ function renderChoice(scene) {
     ? (confirmed
       ? '下一段进入觉醒'
       : (editing
-        ? '下一段会更新这一天之后的路线'
+        ? (usable ? '下一段会更新这一天之后的路线' : '这枚棋魂已经在前面觉醒，不能重复选择')
         : '这里只是查看，下一段仍按当前路线继续'))
     : 'AI 明天会学会你今天展示的能力';
   return `
@@ -802,12 +803,14 @@ function renderSoulButton(scene, piece, selectedKey) {
   const usedSlot = state.selected.indexOf(piece.key);
   const usedElsewhere = usedSlot >= 0 && usedSlot !== scene.slot && selectedKey !== piece.key;
   const usedLater = usedSlot > scene.slot;
+  const usedEarlier = usedSlot >= 0 && usedSlot < scene.slot;
   const selected = selectedKey === piece.key;
   const confirmed = state.selected[scene.slot] === piece.key;
   const currentRoute = state.selected[scene.slot] === piece.key;
+  const disabled = isChoiceEditing(scene.slot) && usedEarlier;
   const status = selected
     ? (confirmed ? '已确认' : '待确认')
-    : (currentRoute ? '当前路线' : (usedLater ? '改写后续' : (usedElsewhere ? '已在前面' : piece.title)));
+    : (currentRoute ? '当前路线' : (usedLater ? '改写后续' : (usedEarlier ? '已在前面' : piece.title)));
   return `
     <button
       type="button"
@@ -815,6 +818,7 @@ function renderSoulButton(scene, piece, selectedKey) {
       data-action="choose-soul"
       data-slot="${scene.slot}"
       data-piece="${piece.key}"
+      ${disabled ? 'disabled' : ''}
     >
       <span class="choice-piece" data-piece="${piece.name}"><span class="choice-piece-glyph">${piece.name}</span></span>
       <span class="soul-button-text">
@@ -1041,30 +1045,65 @@ function buildGameSrc(scene) {
   const config = getMatchConfig(scene);
   params.set('levelId', String(config.levelId));
   params.set('ai', '1');
+  params.set('aiSide', config.aiSide);
   params.set('aiTime', String(config.aiTime || 4000));
   params.set('aiStrength', config.aiStrength || 'story');
   params.set('mode', config.mode);
   if (config.mode === 'classic') params.set('classic', '1');
-  if (config.playerUpgrades.length) params.set('pu', config.playerUpgrades.join(','));
-  if (config.aiUpgrades.length) params.set('au', config.aiUpgrades.join(','));
+  if (config.redUpgrades.length) params.set('pu', config.redUpgrades.join(','));
+  if (config.blackUpgrades.length) params.set('au', config.blackUpgrades.join(','));
   return `./index-legacy.html?${params.toString()}`;
+}
+
+function getPlayerSideForDay(day) {
+  return Number(day) % 2 === 0 ? 'black' : 'red';
+}
+
+function getAiSideForDay(day) {
+  return getPlayerSideForDay(day) === 'red' ? 'black' : 'red';
+}
+
+function buildSideMatchConfig(day, playerUpgrades, aiUpgrades) {
+  const playerSide = getPlayerSideForDay(day);
+  const aiSide = getAiSideForDay(day);
+  return {
+    playerSide,
+    aiSide,
+    playerUpgrades,
+    aiUpgrades,
+    redUpgrades: playerSide === 'red' ? playerUpgrades : aiUpgrades,
+    blackUpgrades: playerSide === 'black' ? playerUpgrades : aiUpgrades,
+  };
 }
 
 function getMatchConfig(scene) {
   if (scene.day === 1) {
-    return { levelId: 101, mode: 'classic', aiTime: 2500, aiStrength: 'story', playerUpgrades: [], aiUpgrades: [] };
+    return {
+      levelId: 101,
+      mode: 'classic',
+      aiTime: 2500,
+      aiStrength: 'story',
+      ...buildSideMatchConfig(scene.day, [], []),
+    };
   }
   if (scene.day === 9) {
-    return { levelId: 109, mode: 'mixed', aiTime: 4500, aiStrength: 'story', playerUpgrades: ALL_PIECE_KEYS, aiUpgrades: ALL_PIECE_KEYS };
+    return {
+      levelId: 109,
+      mode: 'mixed',
+      aiTime: 4500,
+      aiStrength: 'story',
+      ...buildSideMatchConfig(scene.day, ALL_PIECE_KEYS, ALL_PIECE_KEYS),
+    };
   }
   const slot = scene.slot || 0;
+  const playerUpgrades = state.selected.slice(0, slot + 1);
+  const aiUpgrades = state.selected.slice(0, slot);
   return {
     levelId: 100 + scene.day,
     mode: 'mixed',
     aiTime: 4000,
     aiStrength: 'story',
-    playerUpgrades: state.selected.slice(0, slot + 1),
-    aiUpgrades: state.selected.slice(0, slot),
+    ...buildSideMatchConfig(scene.day, playerUpgrades, aiUpgrades),
   };
 }
 
@@ -1113,8 +1152,14 @@ function isChoiceEditing(slot) {
   return state.editingSlot === slot || !state.selected[slot];
 }
 
+function canUseSoulAtSlot(slot, pieceKey) {
+  const usedSlot = state.selected.indexOf(pieceKey);
+  return usedSlot < 0 || usedSlot >= slot;
+}
+
 function previewSoulChoice(slot, pieceKey) {
   if (!PIECE_BY_KEY[pieceKey]) return;
+  if (isChoiceEditing(slot) && !canUseSoulAtSlot(slot, pieceKey)) return;
   if (state.selected[slot] === pieceKey) {
     if (state.pendingChoice?.[slot]) {
       delete state.pendingChoice[slot];
@@ -1130,6 +1175,7 @@ function previewSoulChoice(slot, pieceKey) {
 function confirmSoulChoice(slot) {
   const pieceKey = getChoicePreviewKey(slot);
   if (!PIECE_BY_KEY[pieceKey]) return;
+  if (!canUseSoulAtSlot(slot, pieceKey)) return;
   const oldKey = state.selected[slot];
   if (oldKey === pieceKey) {
     moveToScene(state.currentScene + 1);
@@ -1199,7 +1245,12 @@ function updateMatchStatusPanel(data) {
 
 function updateMatchProgressPanel(data) {
   if (data.redPct === undefined) return;
-  const playerPct = clamp(Math.round(Number(data.redPct) || 0), 0, 100);
+  const redPct = clamp(Math.round(Number(data.redPct) || 0), 0, 100);
+  const scenes = buildScenes();
+  const scene = scenes[state.currentScene];
+  const playerPct = scene?.kind === 'match' && getPlayerSideForDay(scene.day) === 'black'
+    ? 100 - redPct
+    : redPct;
   setText('#story-player-pct', `${playerPct}%`);
   const fill = document.querySelector('#story-player-fill');
   if (fill) fill.style.width = `${playerPct}%`;
