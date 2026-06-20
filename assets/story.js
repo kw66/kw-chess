@@ -367,7 +367,7 @@ function buildScenes() {
     scenes.push(makeAwakeningScene(day, slot, pieceKey));
     scenes.push(makeMatchScene(day, slot, pieceKey));
     if (!isDayCompleted(day)) break;
-    scenes.push(makeAfterWinScene(day, slot, pieceKey));
+    if (day === 8) scenes.push(makeAfterWinScene(day, slot, pieceKey));
   }
 
   if (state.selected.length === 7 && isDayCompleted(8)) {
@@ -503,6 +503,9 @@ function makeMatchScene(day, slot, pieceKey) {
   const piece = PIECE_BY_KEY[pieceKey];
   const previous = state.selected.slice(0, slot).map((key) => PIECE_BY_KEY[key].name).join('、') || '无';
   const current = state.selected.slice(0, slot + 1).map((key) => PIECE_BY_KEY[key].name).join('、');
+  const resultText = day === 8
+    ? `第${day}局，你赢了。${piece.name}魂的锋芒已经暴露，七枚棋魂也终于全部醒来。今晚 AI 还会继续蒸馏这套新棋，但明天已经没有新的棋魂可以隐藏。`
+    : `第${day}局，你赢了。${piece.name}魂帮你争下了今天的时间差。观众席还在欢呼，AI 的训练日志已经开始刷新；今晚，它会把这枚棋魂蒸馏进自己的棋谱，而下一枚棋子也开始回应你。`;
   return {
     id: `match-${day}`,
     act: `第${day}天`,
@@ -513,7 +516,7 @@ function makeMatchScene(day, slot, pieceKey) {
     pieceKey,
     matchTitle: `第${day}局：${piece.title}登场`,
     objective: `你方觉醒：${current}。AI 已掌握：${previous}。必须获胜才能进入下一天。`,
-    resultText: `第${day}局，你赢了。${piece.name}魂的锋芒已经暴露，今晚 AI 会把它蒸馏进自己的棋谱。`,
+    resultText,
     quote: `今天的领先，只有这一盘棋的时间。`,
     body: [
       `你没有把所有棋魂都亮出来，只让${piece.name}魂走到台前。`,
@@ -526,20 +529,15 @@ function makeMatchScene(day, slot, pieceKey) {
 
 function makeAfterWinScene(day, slot, pieceKey) {
   const piece = PIECE_BY_KEY[pieceKey];
-  const score = getScoreAfterDay(day);
   return {
     id: `after-${day}`,
     act: `第${day}夜`,
-    title: day === 8 ? '七魂俱醒' : '蒸馏之夜',
+    title: '七魂俱醒',
     kind: 'story',
-    quote: day === 8
-      ? '七枚棋魂已经全部醒来。可 AI 也只落后你一夜。'
-      : `比分来到 AI ${score.aiWins} : ${score.playerWins} 你。可机房里的灯没有熄。`,
+    quote: '七枚棋魂已经全部醒来。可 AI 也只落后你一夜。',
     body: [
       `${piece.name}魂帮你赢下了这一局。观众席还在欢呼，AI 的训练日志已经开始刷新。`,
-      day === 8
-        ? '明天没有新的棋魂可以隐藏。第九局，双方都将全部觉醒。'
-        : '你看见了危险，也看见了希望：经过一盘棋，你自己的棋魂更稳了，下一枚棋子也开始回应。',
+      '明天没有新的棋魂可以隐藏。第九局，双方都将全部觉醒。',
     ],
   };
 }
@@ -575,22 +573,17 @@ function completeCurrentScene() {
     return;
   }
   if (scene.kind === 'choice') {
+    const editing = isChoiceEditing(scene.slot);
     const pendingKey = state.pendingChoice?.[scene.slot] || null;
-    if (!isChoiceEditing(scene.slot)) {
+    if (!editing) {
       delete state.pendingChoice?.[scene.slot];
       moveToScene(state.currentScene + 1);
       return;
     }
-    if (pendingKey && pendingKey !== state.selected[scene.slot]) {
+    if (pendingKey) {
       confirmSoulChoice(scene.slot);
       return;
     }
-    if (!state.selected[scene.slot]) {
-      confirmSoulChoice(scene.slot);
-      return;
-    }
-    state.editingSlot = null;
-    moveToScene(state.currentScene + 1);
     return;
   }
   moveToScene(state.currentScene + 1);
@@ -615,7 +608,9 @@ function goScene(index) {
   if (currentScene?.kind === 'choice' && (!nextScene || nextScene.slot !== currentScene.slot)) {
     delete state.pendingChoice?.[currentScene.slot];
   }
-  if (!nextScene || nextScene.kind !== 'choice' || nextScene.slot !== state.editingSlot) state.editingSlot = null;
+  if (!nextScene || nextScene.kind !== 'choice' || nextScene.slot !== state.editingSlot) {
+    state.editingSlot = null;
+  }
   state.currentScene = nextIndex;
   state.activeMatch = null;
   saveState();
@@ -654,10 +649,13 @@ function render() {
     </main>
   `;
   bindEvents();
+  const alignTrack = () => scrollCurrentTrackItem();
+  alignTrack();
   requestAnimationFrame(() => {
-    scrollCurrentTrackItem();
+    alignTrack();
     updateTickerMotion();
-    requestAnimationFrame(scrollCurrentTrackItem);
+    requestAnimationFrame(alignTrack);
+    setTimeout(alignTrack, 80);
   });
 }
 
@@ -799,7 +797,7 @@ function renderChoice(scene) {
       <div class="soul-picker" aria-label="棋魂候选">
         ${PIECES.map((piece) => renderSoulButton(scene, piece, selectedKey)).join('')}
       </div>
-      ${selectedPiece ? renderSoulDetail(scene, selectedPiece) : renderSoulEmpty(scene)}
+      ${renderSoulSelectionNote(scene, selectedPiece)}
     </section>
   `;
 }
@@ -834,28 +832,17 @@ function renderSoulButton(scene, piece, selectedKey) {
   `;
 }
 
-function renderSoulDetail(scene, piece) {
-  const previousKeys = state.selected.slice(0, scene.slot);
-  const previous = previousKeys.map((key) => PIECE_BY_KEY[key].name).join('、') || '暂无';
+function renderSoulSelectionNote(scene, piece) {
+  if (!piece) return renderSoulEmpty(scene);
   const confirmed = state.selected[scene.slot] === piece.key;
+  const editing = isChoiceEditing(scene.slot);
+  const blocked = editing && !canUseSoulAtSlot(scene.slot, piece.key);
   return `
-    <div class="soul-detail">
-      <figure class="soul-preview">
-        <img src="${escapeAttr(piece.image)}" alt="${escapeAttr(piece.imageAlt)}" loading="eager" decoding="async">
-      </figure>
-      <div class="soul-copy">
-        <div class="soul-title-row">
-          <span class="choice-piece large" data-piece="${piece.name}"><span class="choice-piece-glyph">${piece.name}</span></span>
-          <div>
-            <strong>${piece.title} · ${piece.actTitle}</strong>
-            <span>${piece.role}</span>
-          </div>
-        </div>
-        <p class="soul-belief">${piece.choice}</p>
-        <p class="soul-ability"><b>走法概览：</b>${piece.shortHint}</p>
-        ${renderRuleList(piece)}
-        <p class="soul-warning">${confirmed ? '已确认。' : '待确认。'}你：${previous === '暂无' ? piece.name : `${previous}、${piece.name}`}。AI：${previous}。用新魂赢下时间差。</p>
-      </div>
+    <div class="soul-confirm">
+      <strong>${piece.name}魂${confirmed ? '已确认' : (blocked ? '不能重复选择' : '待确认')}</strong>
+      <p>${blocked
+        ? '这枚棋魂已经在前面觉醒。'
+        : (confirmed ? '下一页查看棋魂图和完整走法。' : '点击底部按钮确认觉醒。')}</p>
     </div>
   `;
 }
@@ -863,8 +850,7 @@ function renderSoulDetail(scene, piece) {
 function renderSoulEmpty(scene) {
   return `
     <div class="soul-empty">
-      <strong>先选一枚棋子。</strong>
-      <p>七枚棋魂都可以查看。若改选已经在后面觉醒过的棋魂，确认后会重写这一天之后的路线。</p>
+      <strong>先选一枚棋魂。</strong>
     </div>
   `;
 }
@@ -975,6 +961,7 @@ function getPrimaryActionLabel(scene) {
   if (scene.kind === 'choice') {
     const previewKey = getChoicePreviewKey(scene.slot);
     if (!previewKey) return '选择棋魂';
+    if (isChoiceEditing(scene.slot)) return '确认觉醒';
     return '下一段';
   }
   if (scene.kind !== 'match') return '下一段';
@@ -1150,7 +1137,9 @@ function getRetryText(scene) {
 }
 
 function getChoicePreviewKey(slot) {
-  return state.pendingChoice?.[slot] || state.selected[slot] || null;
+  if (state.pendingChoice?.[slot]) return state.pendingChoice[slot];
+  if (state.editingSlot === slot) return null;
+  return state.selected[slot] || null;
 }
 
 function isChoiceEditing(slot) {
@@ -1165,7 +1154,7 @@ function canUseSoulAtSlot(slot, pieceKey) {
 function previewSoulChoice(slot, pieceKey) {
   if (!PIECE_BY_KEY[pieceKey]) return;
   if (isChoiceEditing(slot) && !canUseSoulAtSlot(slot, pieceKey)) return;
-  if (state.selected[slot] === pieceKey) {
+  if (state.selected[slot] === pieceKey && state.editingSlot !== slot) {
     if (state.pendingChoice?.[slot]) {
       delete state.pendingChoice[slot];
       render();
@@ -1183,6 +1172,8 @@ function confirmSoulChoice(slot) {
   if (!canUseSoulAtSlot(slot, pieceKey)) return;
   const oldKey = state.selected[slot];
   if (oldKey === pieceKey) {
+    state.editingSlot = null;
+    delete state.pendingChoice?.[slot];
     moveToScene(state.currentScene + 1);
     return;
   }

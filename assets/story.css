@@ -1051,10 +1051,11 @@ blockquote {
 
 .soul-button {
   display: grid;
-  gap: 6px;
-  justify-items: center;
-  min-height: 76px;
-  padding: 9px 6px 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-height: 54px;
+  padding: 7px 8px;
   border: 1px solid rgba(78, 46, 22, 0.32);
   border-radius: 8px;
   color: var(--ink);
@@ -1064,7 +1065,7 @@ blockquote {
     0 3px 0 rgba(91, 55, 26, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
   cursor: pointer;
-  text-align: center;
+  text-align: left;
   transition:
     transform 120ms ease,
     box-shadow 120ms ease,
@@ -1129,6 +1130,7 @@ blockquote {
 .soul-button-text {
   display: grid;
   gap: 2px;
+  align-content: center;
   min-width: 0;
   width: 100%;
 }
@@ -1142,16 +1144,42 @@ blockquote {
 
 .soul-button-text strong {
   color: #24180f;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
   line-height: 1.1;
 }
 
 .soul-button-text small {
   color: #755231;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 850;
   line-height: 1.1;
+}
+
+.soul-confirm {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(159, 32, 25, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 240, 213, 0.46);
+}
+
+.soul-confirm strong {
+  color: #24180f;
+  font-size: 14px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.soul-confirm p {
+  margin: 0;
+  color: #5e432b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .soul-detail {
@@ -1463,18 +1491,19 @@ blockquote {
 
   .soul-picker {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 7px;
+    gap: 6px;
   }
 
   .soul-button {
-    min-height: 68px;
-    padding: 7px 4px 6px;
+    min-height: 50px;
+    padding: 6px 6px;
+    gap: 5px;
   }
 
   .choice-piece {
-    width: 31px;
-    height: 31px;
-    font-size: 17px;
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
   }
 
   .choice-piece.large {
@@ -1484,14 +1513,30 @@ blockquote {
   }
 
   .soul-button-text strong {
-    font-size: 12px;
-    white-space: normal;
+    font-size: 11px;
     line-height: 1.12;
-    min-height: 2.24em;
+    min-height: 0;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   .soul-button-text small {
-    font-size: 10px;
+    font-size: 9px;
+  }
+
+  .soul-confirm {
+    margin-top: 8px;
+    padding: 7px 8px;
+  }
+
+  .soul-confirm strong {
+    font-size: 13px;
+  }
+
+  .soul-confirm p {
+    font-size: 11px;
   }
 
   .soul-detail {
@@ -1625,5 +1670,11 @@ blockquote {
 
   .story-game-actions.five {
     grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@media (max-width: 360px) {
+  .soul-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
