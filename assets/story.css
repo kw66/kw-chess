@@ -170,28 +170,19 @@ button:disabled {
 .track-scroll {
   position: relative;
   display: flex;
-  justify-content: center;
-  gap: 10px;
+  --track-item-width: clamp(52px, 15vw, 86px);
+  --track-gap: clamp(8px, 2.5vw, 12px);
+  gap: var(--track-gap);
   overflow-x: auto;
   overflow-y: hidden;
   padding: 5px 2px 0;
   scroll-snap-type: x proximity;
+  scroll-padding-inline: 2px;
   scrollbar-width: none;
 }
 
 .track-scroll::-webkit-scrollbar {
   display: none;
-}
-
-.track-scroll::before {
-  content: "";
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 16px;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(159, 32, 25, 0.26), rgba(180, 123, 35, 0.42));
-  pointer-events: none;
 }
 
 .track-item {
@@ -200,14 +191,30 @@ button:disabled {
   display: grid;
   justify-items: center;
   gap: 3px;
-  flex: 0 0 86px;
-  min-width: 74px;
+  flex: 0 0 var(--track-item-width);
+  min-width: 0;
   padding: 0;
   border: 0;
   color: #6d4c32;
   background: transparent;
   font: inherit;
   scroll-snap-align: center;
+}
+
+.track-item::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 11px;
+  left: calc(-0.5 * var(--track-gap) - 50%);
+  width: calc(100% + var(--track-gap));
+  height: 2px;
+  background: linear-gradient(90deg, rgba(159, 32, 25, 0.26), rgba(180, 123, 35, 0.42));
+  pointer-events: none;
+}
+
+.track-item:first-child::before {
+  display: none;
 }
 
 .track-dot {
@@ -703,27 +710,19 @@ blockquote {
   .track-scroll {
     position: relative;
     display: flex;
-    gap: 10px;
+    --track-item-width: clamp(52px, 15vw, 62px);
+    --track-gap: clamp(7px, 2.5vw, 10px);
+    gap: var(--track-gap);
     overflow-x: auto;
     overflow-y: hidden;
     padding: 5px 2px 0;
     scroll-snap-type: x proximity;
+    scroll-padding-inline: 2px;
     scrollbar-width: none;
   }
 
   .track-scroll::-webkit-scrollbar {
     display: none;
-  }
-
-  .track-scroll::before {
-    content: "";
-    position: absolute;
-    left: 14px;
-    right: 14px;
-    top: 16px;
-    height: 2px;
-    background: linear-gradient(90deg, rgba(159, 32, 25, 0.26), rgba(180, 123, 35, 0.42));
-    pointer-events: none;
   }
 
   .track-item {
@@ -732,14 +731,30 @@ blockquote {
     display: grid;
     justify-items: center;
     gap: 3px;
-    flex: 0 0 54px;
-    min-width: 54px;
+    flex: 0 0 var(--track-item-width);
+    min-width: 0;
     padding: 0;
     border: 0;
     color: #6d4c32;
     background: transparent;
     font: inherit;
     scroll-snap-align: center;
+  }
+
+  .track-item::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: 11px;
+    left: calc(-0.5 * var(--track-gap) - 50%);
+    width: calc(100% + var(--track-gap));
+    height: 2px;
+    background: linear-gradient(90deg, rgba(159, 32, 25, 0.26), rgba(180, 123, 35, 0.42));
+    pointer-events: none;
+  }
+
+  .track-item:first-child::before {
+    display: none;
   }
 
   .track-dot {

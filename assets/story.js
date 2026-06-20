@@ -392,6 +392,10 @@ function buildScenes() {
       matchTitle: '第九局：全魂对决',
       objective: '双方全部觉醒。你必须赢下这一局，以 8 胜结束十五番棋。',
       resultText: '第九局结束，比分定格在 AI 1 : 8 你。AI 还会继续学习，但这一次，胜负已经来不及等它追上。',
+      image: {
+        src: './assets/story-art/cover-kewang-xiangqi.webp',
+        alt: '现代人类棋手与人形人工智能机器人在玄幻宇宙背景下进行科王象棋最终对决',
+      },
       quote: '这一次，AI 必须在你创造的新棋盘里分出胜负。',
       body: [
         'AI 不再是传统棋子。它带着七枚觉醒棋魂坐到你对面。',
@@ -653,6 +657,7 @@ function render() {
   requestAnimationFrame(() => {
     scrollCurrentTrackItem();
     updateTickerMotion();
+    requestAnimationFrame(scrollCurrentTrackItem);
   });
 }
 
@@ -1358,8 +1363,15 @@ function completeCurrentMatchForTest() {
 
 function scrollCurrentTrackItem() {
   const current = app.querySelector('.track-item.current');
-  if (!current) return;
-  current.scrollIntoView({ inline: 'center', block: 'nearest' });
+  const scroller = current?.closest('.track-scroll');
+  if (!current || !scroller) return;
+  const index = Math.max(0, Math.trunc(Number(current.dataset.index) || 0));
+  const count = scroller.querySelectorAll('.track-item').length;
+  const max = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  let target = current.offsetLeft + current.offsetWidth / 2 - scroller.clientWidth / 2;
+  if (index <= 2) target = 0;
+  else if (index >= count - 3) target = max;
+  scroller.scrollLeft = clamp(target, 0, max);
 }
 
 function updateTickerMotion() {
