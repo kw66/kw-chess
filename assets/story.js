@@ -1,4 +1,15 @@
 const STORAGE_KEY = 'kw_chess_story_progress_v5';
+const MANUAL_SAVE_KEY = 'kw_chess_story_manual_save_v1';
+const STATS_VISITOR_KEY = 'kw_chess_stats_visitor';
+const STATS_LAST_UV_DATE_KEY = 'kw_chess_stats_last_uv_date';
+const STATS_COUNTER_RPC_URL = 'https://ypefmpeekfucmarbbdov.supabase.co';
+const STATS_COUNTER_RPC_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwZWZtcGVla2Z1Y21hcmJiZG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTA2NTYsImV4cCI6MjA4MTUyNjY1Nn0.XTOQNFuuwfu9nwDTnO9-NEqlzZnzdCVnEmYEJh0rXf8';
+const STATS_COUNTER_IDS = {
+  totalPv: 'kw_chess_pv_total',
+  totalUv: 'kw_chess_uv_total',
+  dailyPvPrefix: 'kw_chess_pv_day',
+  dailyUvPrefix: 'kw_chess_uv_day',
+};
 
 const PIECES = [
   {
@@ -210,6 +221,13 @@ function normalizeState(saved) {
     activeMatch: typeof saved.activeMatch === 'string' ? saved.activeMatch : null,
     matchResults: saved.matchResults && typeof saved.matchResults === 'object' ? saved.matchResults : {},
     achievements: saved.achievements && typeof saved.achievements === 'object' ? saved.achievements : {},
+    gameInfoTab: ['author', 'settings', 'stats'].includes(saved.gameInfoTab) ? saved.gameInfoTab : 'author',
+    gameInfoOpen: false,
+    gameInfoScrollY: 0,
+    globalStats: { totalPv: 0, todayPv: 0, totalUv: 0, todayUv: 0 },
+    globalStatsStatus: '正在读取科王战绩...',
+    manualSave: loadManualSave(),
+    notice: '',
   };
 }
 
@@ -232,6 +250,223 @@ function getScore() {
   const playerWins = state.completedDays.filter((day) => day >= 2 && day <= 9).length;
   const aiWins = state.completedDays.includes(1) ? 1 : 0;
   return { playerWins, aiWins };
+}
+
+function createSaveSnapshot(extra = {}) {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    currentScene: state.currentScene,
+    maxScene: state.maxScene,
+    selected: [...state.selected],
+    completedDays: [...state.completedDays],
+    matchResults: JSON.parse(JSON.stringify(state.matchResults || {})),
+    achievements: { ...(state.achievements || {}) },
+    ...extra,
+  };
+}
+
+function applySaveSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return false;
+  releaseInfoPanelLock();
+  Object.assign(state, normalizeState(snapshot));
+  state.manualSave = loadManualSave();
+  state.notice = '已读档。';
+  saveState();
+  render();
+  return true;
+}
+
+function loadManualSave() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MANUAL_SAVE_KEY) || 'null');
+    return saved && typeof saved === 'object' ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveManualProgress() {
+  const snapshot = createSaveSnapshot({ kind: 'manual' });
+  localStorage.setItem(MANUAL_SAVE_KEY, JSON.stringify(snapshot));
+  state.manualSave = snapshot;
+  state.notice = '已保存当前进度。';
+  render();
+}
+
+function loadManualProgress() {
+  const snapshot = loadManualSave();
+  if (!snapshot) {
+    state.notice = '还没有手动存档。';
+    render();
+    return;
+  }
+  applySaveSnapshot(snapshot);
+}
+
+function getAutoClearanceSaveKey() {
+  return `${STORAGE_KEY}_clearance`;
+}
+
+function loadAutoClearanceSave() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(getAutoClearanceSaveKey()) || 'null');
+    return saved && typeof saved === 'object' ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAutoClearanceIfNeeded() {
+  if (!isDayCompleted(9)) return;
+  const existing = loadAutoClearanceSave();
+  if (existing?.selected?.join('|') === state.selected.join('|')) return;
+  const snapshot = createSaveSnapshot({ kind: 'clearance' });
+  localStorage.setItem(getAutoClearanceSaveKey(), JSON.stringify(snapshot));
+}
+
+function getSnapshotProgressText(snapshot) {
+  const completed = Array.isArray(snapshot?.completedDays) ? snapshot.completedDays : [];
+  if (completed.includes(9)) return '已通关';
+  if (completed.includes(8)) return '最终决战前';
+  const latest = completed.length ? Math.max(...completed) : 0;
+  return latest ? `第${latest}局后` : '序章';
+}
+
+function getSnapshotSoulText(snapshot) {
+  const selected = Array.isArray(snapshot?.selected) ? snapshot.selected : [];
+  if (!selected.length) return '觉醒顺序：暂无';
+  return `觉醒顺序：${selected.map((key) => PIECE_BY_KEY[key]?.name).filter(Boolean).join('、')}`;
+}
+
+function getSnapshotSummary(snapshot) {
+  return `${getSnapshotProgressText(snapshot)}。${getSnapshotSoulText(snapshot)}`;
+}
+
+function formatSaveTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未知时间';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+async function initGlobalStats() {
+  try {
+    if (shouldRecordGlobalStats()) {
+      await recordGlobalVisit();
+      await refreshGlobalStats();
+      state.globalStatsStatus = '科王战绩已更新。';
+    } else {
+      state.globalStatsStatus = '本地预览只显示本机统计。';
+    }
+  } catch (error) {
+    console.warn('科王战绩初始化失败:', error);
+    state.globalStatsStatus = '全站统计暂时不可用，已显示本机统计。';
+  }
+  if (state.gameInfoOpen && state.gameInfoTab === 'stats') render();
+}
+
+function shouldRecordGlobalStats() {
+  const hostname = window.location.hostname;
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return false;
+  return window.location.protocol === 'https:' || window.location.protocol === 'http:';
+}
+
+async function recordGlobalVisit() {
+  const today = getLocalDateKey();
+  await incrementStatsCounter(STATS_COUNTER_IDS.totalPv);
+  await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyPvPrefix, today));
+  const isKnownVisitor = localStorage.getItem(STATS_VISITOR_KEY) === 'true';
+  const lastUvDate = localStorage.getItem(STATS_LAST_UV_DATE_KEY);
+  if (!isKnownVisitor) {
+    await incrementStatsCounter(STATS_COUNTER_IDS.totalUv);
+    localStorage.setItem(STATS_VISITOR_KEY, 'true');
+  }
+  if (lastUvDate !== today) {
+    await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today));
+    localStorage.setItem(STATS_LAST_UV_DATE_KEY, today);
+  }
+}
+
+async function refreshGlobalStats() {
+  const today = getLocalDateKey();
+  const dailyPv = makeDailyCounterId(STATS_COUNTER_IDS.dailyPvPrefix, today);
+  const dailyUv = makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today);
+  const counters = await fetchStatsCounters([
+    STATS_COUNTER_IDS.totalPv,
+    STATS_COUNTER_IDS.totalUv,
+    dailyPv,
+    dailyUv,
+  ]);
+  state.globalStats = {
+    totalPv: clampInt(counters[STATS_COUNTER_IDS.totalPv], 0, 99999999),
+    totalUv: clampInt(counters[STATS_COUNTER_IDS.totalUv], 0, 99999999),
+    todayPv: clampInt(counters[dailyPv], 0, 99999999),
+    todayUv: clampInt(counters[dailyUv], 0, 99999999),
+  };
+}
+
+async function incrementStatsCounter(counterId) {
+  return postStatsRpc('increment_counter', { counter_id: counterId });
+}
+
+async function fetchStatsCounters(counterIds) {
+  const rows = await postStatsRpc('get_counters', { counter_ids: counterIds });
+  const result = Object.create(null);
+  for (const id of counterIds) result[id] = 0;
+  if (Array.isArray(rows)) {
+    for (const row of rows) {
+      if (row?.id) result[row.id] = clampInt(row.count, 0, 99999999);
+    }
+  }
+  return result;
+}
+
+async function postStatsRpc(endpoint, payload) {
+  const response = await fetch(`${STATS_COUNTER_RPC_URL}/rest/v1/rpc/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      apikey: STATS_COUNTER_RPC_ANON_KEY,
+      Authorization: `Bearer ${STATS_COUNTER_RPC_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`统计接口 ${endpoint} 返回 ${response.status}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function getLocalPlayerStats() {
+  return {
+    finished: isDayCompleted(9),
+    progress: getSnapshotProgressText(createSaveSnapshot()),
+    souls: state.selected.map((key) => PIECE_BY_KEY[key]?.name).filter(Boolean).join('、'),
+  };
+}
+
+function makeDailyCounterId(prefix, dateKey = getLocalDateKey()) {
+  return `${prefix}_${dateKey.replaceAll('-', '')}`;
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function clampInt(value, min, max) {
+  return Math.min(max, Math.max(min, Math.trunc(Number(value) || 0)));
+}
+
+function formatCompactCount(value) {
+  const count = clampInt(value, 0, 99999999);
+  if (count >= 100000) return `${(count / 10000).toFixed(1)}万`;
+  return String(count);
+}
+
+function formatStatValue(value) {
+  return typeof value === 'string' ? value : formatCompactCount(value);
 }
 
 function buildScenes() {
@@ -367,35 +602,36 @@ function buildScenes() {
     scenes.push(makeAwakeningScene(day, slot, pieceKey));
     scenes.push(makeMatchScene(day, slot, pieceKey));
     if (!isDayCompleted(day)) break;
-    if (day === 8) scenes.push(makeAfterWinScene(day, slot, pieceKey));
   }
 
   if (state.selected.length === 7 && isDayCompleted(8)) {
     scenes.push({
       id: 'before-final',
       act: '终幕',
-      title: '第九局 · 前夜',
+      title: '决战前夜',
       kind: 'story',
-      quote: '比分是 AI 1 : 7 你。只差一局，也只剩一夜。',
+      image: {
+        src: './assets/story-art/cover-kewang-xiangqi.webp',
+        alt: '现代人类棋手与人形人工智能机器人在玄幻宇宙背景下进行科王象棋最终对决',
+        className: 'final-night-visual',
+      },
+      quote: '七魂俱醒之后，你已经不再领先，只是暂时还没有被追上。',
       body: [
-        '七枚棋魂全部醒来。可这不再只是你的优势。',
-        'AI 已经学会了你过去七天展露出的全部能力。它用自博弈把每一次冲撞、借友连跳、光波和自爆都拆成新的样本。',
-        '如果第九局你不能拿下第八胜，后面的夜晚会属于它。到那时，它也许会比你更懂这套新棋。',
+        '七枚棋魂全部醒来。车、马、炮、兵、仕、相、帅都已经走出旧规则，棋盘也终于变成完整的新战场。可从这一刻起，你已经不再领先，只是暂时还没有被追上。',
+        '可 AI 也看完了全部答案。它不再只是追赶昨天的你，而是在整夜训练这套新棋。',
+        '再给它几轮自博弈，它也许会比你更熟悉每一次冲撞、连跳、光波和自爆。你没有继续藏招的空间，也没有继续拖延的余地。',
+        '所以第九局不再是试探，而是最终决战。你必须正面击败 AI，率先拿到第八胜，不给它超过你的机会。',
       ],
     });
     scenes.push({
       id: 'match-9',
       act: '终幕',
-      title: '第九局',
+      title: '最终决战',
       kind: 'match',
       day: 9,
-      matchTitle: '第九局：全魂对决',
-      objective: '双方全部觉醒。你必须赢下这一局，以 8 胜结束十五番棋。',
-      resultText: '第九局结束，比分定格在 AI 1 : 8 你。AI 还会继续学习，但这一次，胜负已经来不及等它追上。',
-      image: {
-        src: './assets/story-art/cover-kewang-xiangqi.webp',
-        alt: '现代人类棋手与人形人工智能机器人在玄幻宇宙背景下进行科王象棋最终对决',
-      },
+      matchTitle: '最终决战：全魂对决',
+      objective: '双方全部觉醒。你必须正面击败 AI，以 8 胜结束十五番棋。',
+      resultText: '最终决战结束，比分定格在 AI 1 : 8 你。AI 还会继续学习，但这一次，胜负已经来不及等它追上。',
       quote: '这一次，AI 必须在你创造的新棋盘里分出胜负。',
       body: [
         'AI 不再是传统棋子。它带着七枚觉醒棋魂坐到你对面。',
@@ -408,13 +644,18 @@ function buildScenes() {
     scenes.push({
       id: 'ending',
       act: '尾声',
-      title: '没有第十局',
+      title: '人类的奖杯',
       kind: 'ending',
-      quote: '十五番棋没有下满。不是因为 AI 不够强，而是因为你没有给它继续学习的时间。',
+      image: {
+        src: './assets/story-art/story-final-ai-trophy.webp',
+        alt: '明亮展柜里八座冠军奖杯旁新增一座战胜 AI 的奖杯',
+      },
+      quote: '第九座奖杯被放进展柜时，所有人都知道它和前八座不一样。',
       body: [
-        '三十六小时后，AI 的新版本会更强。一周后，它也许会把棋魂拆成比你更锋利的结构。',
-        '可这一次，胜负已经结束。',
-        '人类未必算得更深。但当旧规则走到尽头时，人类还能创造新的棋盘。',
+        '前八座奖杯证明你曾经站在人类棋坛的顶点。新放进去的这一座，则记录着另一件事：在人类与 AI 的第一次新棋大战里，人类先赢了。',
+        '也许很多年后，AI 会把棋魂拆得更细，把每一种变化都背成新的标准答案。也许这真的是人类最后一次在这样的对决里击败 AI。',
+        '可它仍然是人类的胜利。不是因为人类永远算得更深，而是因为当旧棋盘走到尽头时，人类曾经亲手创造过新的规则。',
+        '展柜的灯没有回答未来。它只是照着那座新的奖杯，也照着棋盘上还没有被完全解释的光。',
       ],
     });
   }
@@ -527,21 +768,6 @@ function makeMatchScene(day, slot, pieceKey) {
   };
 }
 
-function makeAfterWinScene(day, slot, pieceKey) {
-  const piece = PIECE_BY_KEY[pieceKey];
-  return {
-    id: `after-${day}`,
-    act: `第${day}夜`,
-    title: '七魂俱醒',
-    kind: 'story',
-    quote: '七枚棋魂已经全部醒来。可 AI 也只落后你一夜。',
-    body: [
-      `${piece.name}魂帮你赢下了这一局。观众席还在欢呼，AI 的训练日志已经开始刷新。`,
-      '明天没有新的棋魂可以隐藏。第九局，双方都将全部觉醒。',
-    ],
-  };
-}
-
 function getScoreAfterDay(day) {
   const aiWins = day >= 1 ? 1 : 0;
   const playerWins = Math.max(0, Math.min(8, day - 1));
@@ -639,6 +865,7 @@ function render() {
   const activeMatch = isCurrentMatchActive(scene);
   app.innerHTML = `
     <main class="shell${activeMatch ? ' is-playing' : ''}">
+      ${activeMatch ? '' : renderGameInfoPanel()}
       ${renderMobileStoryTrack(scenes)}
       <article class="story-panel kind-${scene.kind}${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
@@ -669,11 +896,7 @@ function renderSceneActions(scene, scenes) {
   return `
     <div class="scene-actions">
       <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
-      ${
-        isEnding
-          ? '<button type="button" class="nav-btn primary" data-action="restart">从头再读</button>'
-          : `<button type="button" class="nav-btn primary" data-action="complete" ${primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>`
-      }
+      <button type="button" class="nav-btn primary" data-action="complete" ${isEnding || primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>
     </div>
   `;
 }
@@ -683,6 +906,7 @@ function renderMobileStoryTrack(scenes) {
   return `
     <section class="mobile-story-track" aria-label="剧情进度">
       <div class="mobile-track-title">
+        <button type="button" class="story-info-button" data-action="toggle-info" aria-expanded="${state.gameInfoOpen ? 'true' : 'false'}">信息与设置</button>
         <h2><span>${scene.act}</span>${scene.title}</h2>
         <p class="mobile-count">${state.currentScene + 1} / ${scenes.length}</p>
       </div>
@@ -709,6 +933,140 @@ function renderTrackItem(scene, index) {
       <span class="track-dot"></span>
       <span class="track-label">${unlocked ? scene.title : '???'}</span>
     </button>
+  `;
+}
+
+function renderGameInfoPanel() {
+  if (!state.gameInfoOpen) return '';
+  const tabs = [
+    ['author', '作者'],
+    ['settings', '设置'],
+    ['stats', '统计'],
+  ];
+  return `
+    <section class="game-info-panel" aria-label="信息与设置" aria-modal="true" role="dialog" data-action="info-backdrop">
+      <div class="game-info-dialog">
+        <div class="game-info-head">
+          <strong>信息与设置</strong>
+          <button type="button" class="nav-btn secondary compact" data-action="close-info">收起</button>
+        </div>
+        <div class="game-info-tabs" role="tablist" aria-label="信息与设置分类">
+          ${tabs.map(([key, label]) => `
+            <button
+              type="button"
+              class="game-info-tab${state.gameInfoTab === key ? ' active' : ''}"
+              data-action="info-tab"
+              data-tab="${key}"
+              role="tab"
+              aria-selected="${state.gameInfoTab === key ? 'true' : 'false'}"
+            >${label}</button>
+          `).join('')}
+        </div>
+        <div class="game-info-content">
+          ${state.gameInfoTab === 'author' ? renderInfoAuthorPage() : ''}
+          ${state.gameInfoTab === 'settings' ? renderInfoSettingsPage() : ''}
+          ${state.gameInfoTab === 'stats' ? renderInfoStatsPage() : ''}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderInfoAuthorPage() {
+  return `
+    <div class="game-info-page author-page">
+      <article class="game-info-card author-card">
+        <p class="author-inline"><strong>作者</strong><span>落星峦</span></p>
+        <p class="author-inline"><a href="https://kw66.github.io/games/" target="_blank" rel="noreferrer">作者游戏合集</a></p>
+      </article>
+      <article class="game-info-card project-card">
+        <p><a href="https://github.com/kw66/kw-chess" target="_blank" rel="noreferrer"><span>项目地址</span><em>（求个 star）</em></a></p>
+        <p><span>小红书交流帖</span><em>暂未开放链接</em></p>
+      </article>
+    </div>
+  `;
+}
+
+function renderInfoSettingsPage() {
+  const current = createSaveSnapshot();
+  const manual = state.manualSave;
+  const auto = loadAutoClearanceSave();
+  return `
+    <div class="game-info-page settings-page">
+      <article class="game-info-card save-card">
+        <div class="save-card-head">
+          <h2>当前进度</h2>
+          <span>${escapeHtml(getSnapshotProgressText(current))}</span>
+        </div>
+        <p>${escapeHtml(getSnapshotSoulText(current))}</p>
+        ${state.notice ? `<p class="game-info-notice">${escapeHtml(state.notice)}</p>` : ''}
+        <div class="save-actions">
+          <button type="button" class="nav-btn secondary compact" data-action="manual-save">存档</button>
+          <button type="button" class="nav-btn secondary compact" data-action="manual-load" ${manual ? '' : 'disabled'}>读档</button>
+          <button type="button" class="nav-btn secondary compact danger" data-action="restart">重开</button>
+        </div>
+      </article>
+      <article class="game-info-card save-card">
+        <div class="save-card-head">
+          <h2>手动存档</h2>
+          <span>${manual ? escapeHtml(formatSaveTime(manual.savedAt)) : '暂无'}</span>
+        </div>
+        <p>${manual ? escapeHtml(getSnapshotSummary(manual)) : '点击“存档”保存当前进度和觉醒顺序。'}</p>
+      </article>
+      <article class="game-info-card save-card">
+        <div class="save-card-head">
+          <h2>通关存档</h2>
+          <span>${auto ? escapeHtml(formatSaveTime(auto.savedAt)) : '暂无'}</span>
+        </div>
+        <p>${auto ? escapeHtml(getSnapshotSummary(auto)) : '通关后会自动保存最终觉醒顺序。'}</p>
+      </article>
+    </div>
+  `;
+}
+
+function renderInfoStatsPage() {
+  const local = getLocalPlayerStats();
+  const stats = state.globalStats || {};
+  const groups = [
+    {
+      title: '全部玩家',
+      items: [
+        ['访问', stats.totalPv || 0, stats.todayPv || 0],
+        ['访客', stats.totalUv || 0, stats.todayUv || 0],
+      ],
+    },
+    {
+      title: '我的战绩',
+      items: [
+        ['通关', local.finished ? '已通关' : '未通关', ''],
+        ['进度', local.progress, ''],
+        ['觉醒', local.souls || '暂无', ''],
+      ],
+    },
+  ];
+  return `
+    <div class="game-info-page stats-page">
+      <article class="game-info-card stats-card">
+        <h2>科王战绩</h2>
+        <div class="stats-panel">
+          ${groups.map((group) => `
+            <section class="stat-group" aria-label="${escapeAttr(group.title)}统计">
+              <h3>${escapeHtml(group.title)}</h3>
+              <div class="stat-grid">
+                ${group.items.map(([label, total, today]) => `
+                  <div class="stat-card${label === '觉醒' ? ' wide' : ''}">
+                    <span>${escapeHtml(label)}</span>
+                    <strong>${escapeHtml(formatStatValue(total))}</strong>
+                    ${today === '' ? '' : `<em>今日 ${escapeHtml(formatCompactCount(today))}</em>`}
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+          `).join('')}
+        </div>
+        <p class="stats-note">${escapeHtml(state.globalStatsStatus || '')}</p>
+      </article>
+    </div>
   `;
 }
 
@@ -1032,6 +1390,10 @@ function escapeAttr(value) {
     .replace(/>/g, '&gt;');
 }
 
+function escapeHtml(value) {
+  return escapeAttr(value).replace(/'/g, '&#39;');
+}
+
 function buildGameSrc(scene) {
   const params = new URLSearchParams();
   const config = getMatchConfig(scene);
@@ -1119,6 +1481,7 @@ function completeMatchFromGame(scene, stats) {
   }
   if (!state.completedDays.includes(scene.day)) state.completedDays.push(scene.day);
   state.completedDays.sort((a, b) => a - b);
+  saveAutoClearanceIfNeeded();
   saveState();
   showMatchFinishedPanel(scene, true);
 }
@@ -1302,8 +1665,14 @@ function bindGlobalMessageListener() {
 
 function bindEvents() {
   bindGlobalMessageListener();
+  if (!window.__kwStoryInfoEscBound) {
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.gameInfoOpen) toggleGameInfoPanel(false);
+    });
+    window.__kwStoryInfoEscBound = true;
+  }
   app.querySelectorAll('[data-action]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (event) => {
       const action = button.dataset.action;
       if (action === 'complete') completeCurrentScene();
       if (action === 'replay-match') startMatch(buildScenes()[state.currentScene]);
@@ -1313,6 +1682,12 @@ function bindEvents() {
       if (action === 'exit-match') closeMatch();
       if (action === 'debug-win') completeCurrentMatchForTest();
       if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
+      if (action === 'toggle-info') toggleGameInfoPanel();
+      if (action === 'close-info') toggleGameInfoPanel(false);
+      if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);
+      if (action === 'info-tab') setGameInfoTab(button.dataset.tab || 'author');
+      if (action === 'manual-save') saveManualProgress();
+      if (action === 'manual-load') loadManualProgress();
       if (action === 'back-choice') {
         const scenes = buildScenes();
         const target = scenes.findIndex((scene) => scene.id === `choice-${button.dataset.day}`);
@@ -1324,6 +1699,7 @@ function bindEvents() {
       }
       if (action === 'restart') {
         if (state.activeMatch) postGameCommand('abort-ai');
+        releaseInfoPanelLock();
         localStorage.removeItem(STORAGE_KEY);
         Object.assign(state, normalizeState({}));
         render();
@@ -1336,6 +1712,36 @@ function bindEvents() {
       postGameCommand(button.dataset.gameCommand);
     });
   });
+}
+
+function setGameInfoTab(tab) {
+  state.gameInfoTab = ['author', 'settings', 'stats'].includes(tab) ? tab : 'author';
+  if (state.gameInfoTab === 'stats') void refreshGlobalStats().then(() => {
+    if (state.gameInfoOpen && state.gameInfoTab === 'stats') render();
+  }).catch(() => {});
+  render();
+}
+
+function toggleGameInfoPanel(forceOpen = null) {
+  const wasOpen = state.gameInfoOpen;
+  const open = forceOpen === null ? !state.gameInfoOpen : Boolean(forceOpen);
+  if (open && !wasOpen) {
+    state.gameInfoScrollY = window.scrollY || 0;
+    document.body.style.top = `-${state.gameInfoScrollY}px`;
+  }
+  state.gameInfoOpen = open;
+  document.body.classList.toggle('game-info-open', open);
+  if (!open && wasOpen) {
+    const scrollY = state.gameInfoScrollY || 0;
+    releaseInfoPanelLock();
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+  }
+  render();
+}
+
+function releaseInfoPanelLock() {
+  document.body.classList.remove('game-info-open');
+  document.body.style.top = '';
 }
 
 function completeCurrentMatchForTest() {
@@ -1402,3 +1808,4 @@ window.render_game_to_text = () => {
 window.advanceTime = () => {};
 
 render();
+void initGlobalStats();
