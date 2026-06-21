@@ -885,7 +885,7 @@ function render() {
   const activeMatch = isCurrentMatchActive(scene);
   app.innerHTML = `
     <main class="shell${activeMatch ? ' is-playing' : ''}">
-      ${activeMatch ? '' : renderGameInfoPanel()}
+      ${renderGameInfoPanel()}
       ${renderMobileStoryTrack(scenes)}
       <article class="story-panel kind-${scene.kind}${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
@@ -1357,7 +1357,7 @@ function getPrimaryActionLabel(scene) {
 
 function renderEmbeddedMatch(scene) {
   const firstDay = scene.day === 1;
-  const actionClass = firstDay ? ' five' : ' four';
+  const actionClass = firstDay ? ' four' : ' three';
   return `
     <div class="story-game-shell">
       <div class="story-game-board">
@@ -1372,7 +1372,6 @@ function renderEmbeddedMatch(scene) {
           <button type="button" class="nav-btn secondary compact" data-game-command="restart">重开</button>
           <button type="button" class="nav-btn secondary compact" data-game-command="undo">悔棋</button>
           ${firstDay ? '<button type="button" class="nav-btn primary compact" data-game-command="resign">认输</button>' : ''}
-          <button type="button" class="nav-btn primary compact" data-action="debug-win">直接取胜</button>
           <button type="button" class="nav-btn secondary compact" data-action="exit-match">返回剧情</button>
         </div>
       </div>
@@ -1699,6 +1698,55 @@ function bindEvents() {
     });
     window.__kwStoryInfoEscBound = true;
   }
+  if (!window.__kwStoryDelegatedClickBound) {
+    app.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-action], [data-game-command]');
+      if (!button || !app.contains(button)) return;
+      if (button.dataset.gameCommand) {
+        postGameCommand(button.dataset.gameCommand);
+        return;
+      }
+      handleStoryAction(button, event);
+    });
+    window.__kwStoryDelegatedClickBound = true;
+  }
+}
+
+function handleStoryAction(button, event) {
+  const action = button.dataset.action;
+  if (action === 'complete') completeCurrentScene();
+  if (action === 'replay-match') startMatch(buildScenes()[state.currentScene]);
+  if (action === 'prev') goScene(state.currentScene - 1);
+  if (action === 'next') goScene(state.currentScene + 1);
+  if (action === 'track') goScene(Number(button.dataset.index));
+  if (action === 'exit-match') closeMatch();
+  if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
+  if (action === 'toggle-info') toggleGameInfoPanel();
+  if (action === 'close-info') toggleGameInfoPanel(false);
+  if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);
+  if (action === 'info-tab') setGameInfoTab(button.dataset.tab || 'author');
+  if (action === 'manual-save') saveManualProgress();
+  if (action === 'manual-load') loadManualProgress();
+  if (action === 'back-choice') {
+    const scenes = buildScenes();
+    const target = scenes.findIndex((scene) => scene.id === `choice-${button.dataset.day}`);
+    if (target >= 0) {
+      state.editingSlot = Number(button.dataset.slot);
+      if (state.pendingChoice) delete state.pendingChoice[state.editingSlot];
+      goScene(target);
+    }
+  }
+  if (action === 'restart') {
+    if (state.activeMatch) postGameCommand('abort-ai');
+    releaseInfoPanelLock();
+    localStorage.removeItem(STORAGE_KEY);
+    Object.assign(state, normalizeState({}));
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function bindLegacyEvents() {
   app.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', (event) => {
       const action = button.dataset.action;
@@ -1708,7 +1756,6 @@ function bindEvents() {
       if (action === 'next') goScene(state.currentScene + 1);
       if (action === 'track') goScene(Number(button.dataset.index));
       if (action === 'exit-match') closeMatch();
-      if (action === 'debug-win') completeCurrentMatchForTest();
       if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
       if (action === 'toggle-info') toggleGameInfoPanel();
       if (action === 'close-info') toggleGameInfoPanel(false);

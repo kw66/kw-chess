@@ -297,7 +297,7 @@ button:disabled {
 .game-info-panel {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 300;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -773,6 +773,8 @@ blockquote {
 }
 
 .story-game-frame {
+  position: relative;
+  z-index: 0;
   display: block;
   width: min(100%, 540px, calc((var(--story-stage-height) - 236px) * 600 / 664));
   max-height: calc(var(--story-stage-height) - 236px);
@@ -1745,6 +1747,10 @@ blockquote {
   grid-template-columns: repeat(4, 1fr);
 }
 
+.story-game-actions.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .story-game-actions.five {
   grid-template-columns: repeat(5, 1fr);
 }
@@ -1990,6 +1996,10 @@ blockquote {
 
   .story-game-actions.four {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .story-game-actions.three {
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .story-game-actions.five {

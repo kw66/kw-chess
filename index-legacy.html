@@ -3132,8 +3132,8 @@ function advantageText(score) {
 
 function updateScoreDisplay(push, nextMover) {
   // 显示用评估必须固定为红方视角，不把"当前谁走"的战术搜索先手权直接换算成胜率。
-  // quickEval 仍保留给 AI 搜索；这里用静态评估避免对称开局被显示成 70%+。
-  const rawScore = AI.evaluate(game.board, RED);
+  // 初始局面没有 nextMover 时仍用静态评估；走棋后用显示专用浅搜索，避免一手威胁被当成稳定优势。
+  const rawScore = nextMover ? AI.displayEval(game.board, nextMover) : AI.evaluate(game.board, RED);
   const wr = scoreToWR(rawScore);
   if (push !== false) wrHistory.push(wr);
 
@@ -3459,7 +3459,7 @@ const AI = (() => {
   // ── 子力价值 ──
   // 传统象棋：马/炮/士象均为传统价值；科王象棋：马/炮大幅增强，士象也增强
   // 三套独立的材料价值表（对应训练分别得到的三个 AI）
-  const CLASSIC_VAL = { K:10000, R:900,  C:450,  H:400,  B:200, A:200, P:100 };
+  const CLASSIC_VAL = { K:10000, R:900,  C:500,  H:380,  B:200, A:200, P:100 };
   const KW_VAL      = { K:10000, R:900,  C:780,  H:780,  B:380, A:380, P:100 };
   // MIXED_VAL：部分觉醒规则下的独立棋子价值表
   const MIXED_VAL   = { K:10000, R:1115, C:1004, H:1327, B:496, A:423, P:390 };
@@ -3563,6 +3563,7 @@ const AI = (() => {
   function seeLite(src, tgt) {
     const atkTop = src.groups ? src.groups[0] : src.layer;
     const defTop = tgt.groups ? tgt.groups[0] : tgt.layer;
+    if (_CLASSIC) return pieceVal(tgt) - pieceVal(src);
     if (atkTop >= defTop) return pieceVal(tgt) * tgt.layer; // 赢的交换
     return atkTop * (pieceVal(tgt) - pieceVal(src));         // 可能亏本
   }
@@ -4755,6 +4756,22 @@ const AI = (() => {
     return nextMover === RED ? raw : -raw;
   }
 
+  // 显示用浅搜索：从下一方开始搜索双方最优，而不是只给下一方免费走一步。
+  // 返回值始终为红方视角，供胜率条显示。
+  function displayEval(board, nextMover) {
+    const owner = nextMover || RED;
+    nodes = 0;
+    stopped = false;
+    gameHashes.clear();
+    for (const entry of game.history || []) gameHashes.add(hashBoard(entry.board, entry.turn));
+    searchPath[0] = hashBoard(board, owner);
+    const depth = _CLASSIC ? 2 : 2;
+    const dl = Date.now() + (_CLASSIC ? 90 : 120);
+    const raw = negamax(board, depth, -100000, 100000, owner, dl, 0, false);
+    const score = stopped ? evaluate(board, owner) : raw;
+    return owner === RED ? score : -score;
+  }
+
   // ── Pondering：利用对手时间持续思考，预热 TT ──
   let ponderAbort = false;
   function abortPonder() { ponderAbort = true; }
@@ -4810,7 +4827,7 @@ const AI = (() => {
     }
   }
 
-  return { bestMove, bestMoveAsync, clearTT, evaluate, quickEval, ponder, ponderLoop, abortPonder };
+  return { bestMove, bestMoveAsync, clearTT, evaluate, quickEval, displayEval, ponder, ponderLoop, abortPonder };
 })();
 
 // ─────────────────────────────────────────────
