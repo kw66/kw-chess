@@ -906,8 +906,8 @@ blockquote {
     position: relative;
     z-index: 2;
     display: grid;
-    gap: 5px;
-    padding: 8px 10px 7px;
+    gap: 4px;
+    padding: 7px 9px 6px;
     border: 1px solid rgba(91, 56, 27, 0.24);
     border-radius: 10px;
     background:
@@ -948,15 +948,15 @@ blockquote {
   }
 
   .story-info-button {
-    min-height: 28px;
-    padding: 0 7px;
+    min-height: 26px;
+    padding: 0 8px;
     font-size: 11px;
   }
 
   .mobile-count {
     margin: 0;
     color: var(--red);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
     line-height: 1.1;
   }
@@ -968,7 +968,7 @@ blockquote {
     gap: 7px;
     margin: 0;
     color: #24180f;
-    font-size: 21px;
+    font-size: 20px;
     line-height: 1.08;
     letter-spacing: 0;
     white-space: nowrap;
@@ -979,13 +979,13 @@ blockquote {
   .mobile-track-title h2 span {
     flex: none;
     color: var(--red);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
   }
 
   .mobile-count {
     align-self: center;
-    padding: 5px 7px;
+    padding: 4px 6px;
     border: 1px solid rgba(116, 70, 31, 0.22);
     border-radius: 999px;
     background: rgba(255, 246, 222, 0.78);
@@ -996,8 +996,8 @@ blockquote {
   .track-scroll {
     position: relative;
     display: flex;
-    --track-item-width: clamp(52px, 15vw, 62px);
-    --track-gap: clamp(7px, 2.5vw, 10px);
+    --track-item-width: clamp(50px, 14vw, 60px);
+    --track-gap: clamp(7px, 2.2vw, 9px);
     gap: var(--track-gap);
     overflow-x: auto;
     overflow-y: hidden;
@@ -1304,7 +1304,7 @@ blockquote {
 }
 
 .choice-panel,
-.ability-card {
+.choice-rules {
   margin-top: var(--space-4);
   padding: var(--space-4);
   border: 1px solid rgba(105, 66, 35, 0.18);
@@ -1321,7 +1321,7 @@ blockquote {
 }
 
 .choice-head strong,
-.ability-card strong {
+.choice-rules strong {
   color: #2d1d12;
   font-size: 16px;
 }
@@ -1596,12 +1596,12 @@ blockquote {
   font-weight: 950;
 }
 
-.ability-card {
+.choice-rules {
   display: grid;
   gap: 8px;
 }
 
-.ability-card p {
+.choice-rules p {
   margin: 0;
   color: #4d3928;
   font-size: 14px;
@@ -1609,10 +1609,33 @@ blockquote {
   line-height: 1.55;
 }
 
-.ability-actions {
+.choice-rule-core,
+.choice-rule-example,
+.choice-rule-note {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.choice-rule-core {
+  border: 1px solid rgba(159, 32, 25, 0.16);
+  background: rgba(255, 238, 191, 0.58);
+  color: var(--red-deep) !important;
+  font-weight: 920 !important;
+}
+
+.choice-rule-example {
+  background: rgba(255, 248, 229, 0.7);
+}
+
+.choice-rule-note {
+  background: rgba(159, 32, 25, 0.06);
+  color: #6b3d25 !important;
+}
+
+.awakening-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 .story-game-meta {
@@ -1641,6 +1664,10 @@ blockquote {
   border-radius: 8px;
   background: rgba(255, 249, 231, 0.58);
   color: #4d3928;
+}
+
+.story-hint-card {
+  pointer-events: none;
 }
 
 .story-side-title {
@@ -1705,6 +1732,7 @@ blockquote {
   font-size: 13px;
   font-weight: 850;
   line-height: 1.4;
+  white-space: pre-line;
 }
 
 .story-live-hint.active {
@@ -1758,7 +1786,7 @@ blockquote {
   }
 
   .choice-panel,
-  .ability-card {
+  .choice-rules {
     margin-top: 10px;
     padding: 10px;
   }
@@ -1770,7 +1798,7 @@ blockquote {
   }
 
   .choice-head strong,
-  .ability-card strong {
+  .choice-rules strong {
     font-size: 15px;
   }
 
@@ -1884,8 +1912,14 @@ blockquote {
     padding: 8px 9px;
   }
 
-  .ability-card p {
+  .choice-rules p {
     font-size: 13px;
+  }
+
+  .choice-rule-core,
+  .choice-rule-example,
+  .choice-rule-note {
+    padding: 7px 8px;
   }
 
   .story-game-meta {

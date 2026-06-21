@@ -1929,13 +1929,13 @@ const PIECE_HINTS_CLASSIC = {
   P: '兵：未过河只能前进；过河后可向前、左、右走一步。',
 };
 const PIECE_HINTS_KEWANG = {
-  R: '车觉醒：横竖直线移动；同线隔空遇到己方非车棋子时，可停在其前一格并将其推出。',
-  H: '马觉醒：可走“日”字位置或直线两格位置；不受马腿限制，己方非马棋子可作为继续计算的中继位置。',
-  C: '炮觉醒：横竖移动；可选择连续棋子作为炮架，越过炮架后落空点或吃第一枚敌子。',
-  B: '相觉醒：斜向两格，不受象眼限制，可过河；移动或吃子落点会沿上下左右产生十字地震。',
-  A: '仕觉醒：斜向一格，可离宫过河；移动或吃子落点会沿四条斜线产生 X 形光波。',
-  K: '帅觉醒：九宫内八向一格，不能主动离宫；吃子后加 1 层，同列无遮挡可远距吃未觉醒敌将帅。',
-  P: '兵觉醒：上下左右一格；己方兵叠层后自动合体，双击可按当前层数范围自爆。',
+  R: '车魂\n走法：横竖直线。\n特殊：同线隔空遇己方非车，可停在其前一格并推出它。\n注意：车本身不继续冲。',
+  H: '马魂\n走法：日字，或直线两格。\n特殊：不受马腿限制；己方非马可作中继起点。\n注意：吃敌子后本步结束。',
+  C: '炮魂\n走法：横竖移动。\n特殊：可选择连续棋子作为炮架，越过后落空点或吃第一枚敌子。\n注意：炮架不会移动或被吃。',
+  B: '相魂\n走法：斜向两格，可过河。\n特殊：不看象眼；移动或吃子落点触发十字地震。\n注意：叠层不触发地震。',
+  A: '仕魂\n走法：斜向一格，可离宫过河。\n特殊：移动或吃子落点触发 X 形光波。\n注意：叠层不触发光波。',
+  K: '帅魂\n走法：九宫内八向一格。\n特殊：吃子加 1 层；同列无遮挡可远距吃未觉醒敌将帅。\n注意：不能主动离宫。',
+  P: '兵魂\n走法：上下左右一格。\n特殊：己方兵叠层后自动合体；双击可按层数范围自爆。\n注意：自爆不分敌我。',
 };
 
 function postPieceHint(pieceType, hint, upgraded = false) {
@@ -1963,7 +1963,7 @@ function summarizeLegalMoves(moves) {
   const dangerText = counts.hurt || counts.fatal
     ? '绿色较稳，黄/红落点会让王暴露。'
     : '绿色是安全落点。';
-  return `当前${parts.join('，')}。${dangerText}`;
+  return `当前：${parts.join('，')}。\n提示：${dangerText}`;
 }
 
 function describeLayerStatus(piece) {
@@ -2005,7 +2005,7 @@ function showPieceHint(pieceOrType, prefix = '') {
   const hint = hints[pieceType] || '';
   const layerHint = describeLayerStatus(piece);
   const moveHint = piece ? summarizeLegalMoves(game.legalMoves) : '';
-  const fullHint = [prefix, hint, layerHint, moveHint].filter(Boolean).join(' ');
+  const fullHint = [prefix, hint, layerHint, moveHint].filter(Boolean).join('\n');
   const el = document.getElementById('piece-hint');
   if (el) el.textContent = fullHint;
   postPieceHint(pieceType, fullHint, !!(piece && piece.upgraded !== false && !_CLASSIC));

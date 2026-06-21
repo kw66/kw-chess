@@ -22,6 +22,7 @@ const PIECES = [
     role: '直线突破，适合把己方棋子送到更深的位置。',
     choice: '你最相信突破。路被堵死，就撞开。',
     quote: '木纹深处亮起赤金轮影，像沉睡多年的战车终于醒来。',
+    core: '把己方棋子当成可以推出去的战车载荷，借直线打开通路。',
     ability: '车的基本走法仍为横向或纵向直线移动，不能越过棋子。新增“冲撞”：若同一直线上先有空点，后面第一枚棋子是己方非车棋子，车可移动到该棋子前一格，并将该棋子沿同方向推出。',
     rules: [
       '移动方式：横向或纵向直线移动，路径上不能越子。',
@@ -30,8 +31,10 @@ const PIECES = [
       '冲撞效果：车停在目标友军前一格，目标友军沿同方向继续移动。',
       '结算方式：被推出的棋子遇敌按层数结算，遇己方同类叠层，遇己方不同类停在前一格。',
     ],
+    example: '例：车前方隔着空点遇到己方兵时，车停在兵前一格，把兵沿同方向推出去；若兵撞到敌子，就按兵的层数结算。',
     shortHint: '车魂：横竖直线移动；同线隔空遇到己方非车棋子时，可停在其前一格并将其推出。',
     fantasy: '轮声从棋盘底下滚过，横线竖线被赤金魂光烧亮。你第一次感觉到，棋子不是被你移动，而是在替你开路。',
+    awakening: '这是反击的第一步。AI 用旧棋盘把你压到墙角，而车魂给你的答案很简单：既然路被堵住，就把路撞出来。',
   },
   {
     key: 'horse',
@@ -43,6 +46,7 @@ const PIECES = [
     role: '借友连跳，适合绕过阻挡寻找远处落点。',
     choice: '你最相信变化。一步之后，还能再踏一步。',
     quote: '马影跃出格线，蹄下的风把旧规则踏成碎光。',
+    core: '不再被马腿挡住，还能借己方棋子重新起算，寻找更远落点。',
     ability: '马的基本走法包含两类：传统“日”字位置，以及横向或纵向两格位置。觉醒马不受马腿限制。若候选位置为己方非马棋子，该位置不作为落点，而作为新的起算位置继续生成后续走法。',
     rules: [
       '移动方式：从当前位置可到达 8 个“日”字位置，也可到达上下左右各两格的位置。',
@@ -51,8 +55,10 @@ const PIECES = [
       '可选目标：空点可落子；敌方棋子可吃；己方马可叠层。',
       '结算限制：选择敌方棋子作为目标后立即结算，本步不会继续生成后续吃子。',
     ],
+    example: '例：马的候选位置上有己方兵时，马不能停在兵上，但可以把兵的位置当成新的起点继续找落点。',
     shortHint: '马魂：可走“日”字位置或直线两格位置；不受马腿限制，己方非马棋子可作为继续计算的中继位置。',
     fantasy: '你听见马嘶从棋盒深处传来。它不再等待一条干净的马腿，而是借着己方棋子的站位继续起跳。',
+    awakening: '你曾经最擅长在混乱里找到缝隙。马魂醒来后，阻挡不再只是阻挡，也可能成为下一次起跳的踏点。',
   },
   {
     key: 'cannon',
@@ -64,6 +70,7 @@ const PIECES = [
     role: '连续炮架，适合打击炮架后的远处目标。',
     choice: '你最相信远方的杀意。真正的威胁不必站在眼前。',
     quote: '炮魂醒来时，棋盘深处响起一声闷雷。',
+    core: '连续棋子都可能成为炮架，炮可以选择越过几枚再出手。',
     ability: '炮的移动方向仍为横向或纵向。无炮架时，可沿空线路移动。遇到连续相邻的棋子时，可以选择其中一段作为炮架；越过炮架后，后方空点可作为落点，后方第一枚敌子可作为吃子目标。',
     rules: [
       '移动方式：横向或纵向移动。',
@@ -72,8 +79,10 @@ const PIECES = [
       '炮架后目标：越过炮架后，空点可落子；遇到的第一枚敌方棋子可吃。',
       '结算限制：炮架本身不被吃，也不会随炮移动。',
     ],
+    example: '例：炮前方连续有两枚棋子时，可以只越过第一枚，也可以把两枚都当作炮架，落到后方空点或吃后方第一枚敌子。',
     shortHint: '炮魂：横竖移动；可选择连续棋子作为炮架，越过炮架后落空点或吃第一枚敌子。',
     fantasy: '棋盘上的棋子浮出淡淡影子，像一座座临时架起的桥。炮声越过连续炮架，落在 AI 以为安全的位置。',
+    awakening: 'AI 擅长守住眼前的最优解。炮魂提醒你，真正的威胁可以藏在更远处，越过它已经算好的第一层防线。',
   },
   {
     key: 'pawn',
@@ -85,6 +94,7 @@ const PIECES = [
     role: '四向推进，自爆连锁，适合用小子换空间。',
     choice: '你最相信不退。最小的棋子，也能炸开局面。',
     quote: '兵魂不是王冠，而是一点不肯熄灭的火。',
+    core: '兵可以四向行动、同类合体，必要时用自爆换空间。',
     ability: '兵的移动方向扩展为上下左右一格。同兵叠层后自动合体，最高 5 层。双击兵可选择自爆；自爆范围等于兵的当前总层数，范围内棋子按爆炸规则结算。',
     rules: [
       '移动方式：上下左右移动一格，不能斜走。',
@@ -93,8 +103,10 @@ const PIECES = [
       '自爆方式：双击兵并选择“爆”，该兵从棋盘上移除，爆炸半径等于当前总层数。',
       '爆炸结算：非兵每受到一波爆炸减少 1 层；兵被爆炸命中时会继续引爆。',
     ],
+    example: '例：3 层兵选择自爆时，会以自身为中心影响 3 格范围；范围内的其他兵被命中后还会继续引爆。',
     shortHint: '兵魂：上下左右一格；己方兵叠层后自动合体，双击可按当前层数范围自爆。',
     fantasy: '那枚兵没有变成王者，只是往前一步。层层火光叠在棋身上，像把所有不能后退的夜晚都点燃。',
+    awakening: '你过去赢棋，常靠大局和重子。兵魂醒来时，你第一次清楚地看见，最小的棋子也能用自己的牺牲改写整片战场。',
   },
   {
     key: 'advisor',
@@ -106,6 +118,7 @@ const PIECES = [
     role: '斜线打击，适合处理贴近中路的威胁。',
     choice: '你最相信守护。不是挡在王前，而是切开杀意。',
     quote: '守护不只是挡住黑暗，也可以把黑暗切开。',
+    core: '仕走到哪里，四条斜线光波就从哪里展开。',
     ability: '仕的基本走法仍为斜向一格，但不再限制在九宫内，也可以过河。仕以移动或吃子方式落子后，会从落点沿四个斜向产生 X 形光波。',
     rules: [
       '移动方式：斜向移动一格。',
@@ -114,8 +127,10 @@ const PIECES = [
       '触发条件：只有移动到空点或吃子落点后，才产生 X 形光波。',
       '光波结算：光波沿四条斜线扩散，距离和伤害等于本次移动带走的层数；叠层不触发光波。',
     ],
+    example: '例：2 层仕斜走一格后，会从落点沿四条斜线打出 2 格距离、2 层伤害的光波；单纯叠层不会触发。',
     shortHint: '仕魂：斜向一格，可离宫过河；移动或吃子落点会沿四条斜线产生 X 形光波。',
     fantasy: '九宫线像被无形的手重新描过。仕向斜线落下，四道魂光从宫门劈出。',
+    awakening: '输给 AI 之后，你以为守护只剩退让。仕魂让你明白，防守也可以主动出刀，替最危险的地方切开一条生路。',
   },
   {
     key: 'bishop',
@@ -127,6 +142,7 @@ const PIECES = [
     role: '越河控线，适合用横竖震荡压住中盘。',
     choice: '你最相信边界会碎。河界不是命令，只是旧棋盘的伤口。',
     quote: '不能过河，只是旧棋盘留下的边界；棋魂醒来时，河也会让路。',
+    core: '相不再受河界和象眼限制，落点会震开上下左右四条线。',
     ability: '相的基本走法仍为斜向两格，但不受象眼限制，也可以过河。相以移动或吃子方式落子后，会从落点沿上下左右产生十字地震波。',
     rules: [
       '移动方式：斜向移动两格。',
@@ -135,8 +151,10 @@ const PIECES = [
       '触发条件：只有移动到空点或吃子落点后，才产生十字地震波。',
       '地震结算：地震沿上下左右扩散，距离和伤害等于本次移动带走的层数；叠层不触发地震。',
     ],
+    example: '例：相越过河界斜走两格后，会从落点向上下左右扩散地震；中间有棋子也不会卡住象眼。',
     shortHint: '相魂：斜向两格，不受象眼限制，可过河；移动或吃子落点会沿上下左右产生十字地震。',
     fantasy: '相站在河边，没有回答你的疑问。它只是向前落下，河界便泛起细密裂纹。',
+    awakening: 'AI 把旧规则背得越来越熟。相魂醒来时，棋盘上最古老的边界开始松动：有些限制，本来就不该永远存在。',
   },
   {
     key: 'king',
@@ -148,6 +166,7 @@ const PIECES = [
     role: '吃子成长，适合亲自压迫关键目标。',
     choice: '你最相信亲征。王不该永远站在别人身后。',
     quote: '帅魂醒来时，九宫不再是牢笼，而像一顶缓缓展开的冠。',
+    core: '帅仍以九宫为根基，但吃子会成长，并能斩掉未觉醒的照面将帅。',
     ability: '帅在九宫内可向八个方向移动一格，但不能主动离开九宫。若被觉醒车推出九宫，之后只能横向或纵向移动一格。帅以吃子方式消灭敌子后增加 1 层；与未觉醒敌方将帅同列且中间无子时，可远距吃掉对方将帅。',
     rules: [
       '宫内移动：在九宫内可向横、竖、斜八个方向移动一格。',
@@ -156,8 +175,10 @@ const PIECES = [
       '成长规则：帅消灭敌方棋子后增加 1 层。',
       '照面规则：同列无任何棋子阻隔，且敌方将帅未觉醒时，可远距吃掉敌方将帅。',
     ],
+    example: '例：帅吃掉敌子后层数加 1；若和未觉醒敌将帅同列且中间没有棋子，可以直接远距吃掉对方。',
     shortHint: '帅魂：九宫内八向一格，不能主动离宫；吃子后加 1 层，同列无遮挡可远距吃未觉醒敌将帅。',
     fantasy: '宫线像水面一样荡开，所有棋子低低共鸣。你终于明白，底线也可以变成力量。',
+    awakening: '七局之后，你已经没有继续躲在变化后面的余地。帅魂醒来时，你知道最后必须由自己站到棋盘中央。',
   },
 ];
 
@@ -617,10 +638,10 @@ function buildScenes() {
       },
       quote: '七魂俱醒之后，你已经不再领先，只是暂时还没有被追上。',
       body: [
-        '七枚棋魂全部醒来。车、马、炮、兵、仕、相、帅都已经走出旧规则，棋盘也终于变成完整的新战场。可从这一刻起，你已经不再领先，只是暂时还没有被追上。',
+        '七枚棋魂全部醒来。车、马、炮、兵、仕、相、帅都已经走出旧规则，棋盘终于变成完整的新战场。',
         '可 AI 也看完了全部答案。它不再只是追赶昨天的你，而是在整夜训练这套新棋。',
-        '再给它几轮自博弈，它也许会比你更熟悉每一次冲撞、连跳、光波和自爆。你没有继续藏招的空间，也没有继续拖延的余地。',
-        '所以第九局不再是试探，而是最终决战。你必须正面击败 AI，率先拿到第八胜，不给它超过你的机会。',
+        '再给它几轮自博弈，它也许会比你更熟悉每一次冲撞、连跳、光波和自爆。你已经不再领先，只是暂时还没有被追上。',
+        '第九局必须结束一切。正面击败 AI，率先拿到第八胜，不给它把新棋学透的时间。',
       ],
     });
     scenes.push({
@@ -652,10 +673,9 @@ function buildScenes() {
       },
       quote: '第九座奖杯被放进展柜时，所有人都知道它和前八座不一样。',
       body: [
-        '前八座奖杯证明你曾经站在人类棋坛的顶点。新放进去的这一座，则记录着另一件事：在人类与 AI 的第一次新棋大战里，人类先赢了。',
+        '前八座奖杯属于过去的棋坛。新放进去的这一座，记录的是另一件事：在人类与 AI 的第一次新棋大战里，人类先赢了。',
         '也许很多年后，AI 会把棋魂拆得更细，把每一种变化都背成新的标准答案。也许这真的是人类最后一次在这样的对决里击败 AI。',
-        '可它仍然是人类的胜利。不是因为人类永远算得更深，而是因为当旧棋盘走到尽头时，人类曾经亲手创造过新的规则。',
-        '展柜的灯没有回答未来。它只是照着那座新的奖杯，也照着棋盘上还没有被完全解释的光。',
+        '但这一刻仍然属于人类。展柜的灯没有回答未来，只照着那座新的奖杯，也照着棋盘上还没有被完全解释的光。',
       ],
     });
   }
@@ -732,10 +752,10 @@ function makeAwakeningScene(day, slot, pieceKey) {
     quote: piece.quote,
     body: [
       piece.fantasy,
-      `${piece.name}魂真正改变的不是棋子外形，而是你能在棋盘上使用的新规则。`,
-      day === 2
-        ? '这是反转的第一步。AI 还不知道，这枚棋子已经不再属于旧规则。'
-        : '你知道，今天用出来的奇迹，明天就会变成 AI 的武器。所以这一局必须赢。',
+      piece.awakening,
+      day === 8
+        ? '这是最后一枚新魂。明天不会再有新的底牌，只有你和 AI 对同一套规则的理解。'
+        : '今天用出来的奇迹，明天就会变成 AI 的武器。所以这一局必须赢。',
     ],
   };
 }
@@ -906,7 +926,7 @@ function renderMobileStoryTrack(scenes) {
   return `
     <section class="mobile-story-track" aria-label="剧情进度">
       <div class="mobile-track-title">
-        <button type="button" class="story-info-button" data-action="toggle-info" aria-expanded="${state.gameInfoOpen ? 'true' : 'false'}">信息与设置</button>
+        <button type="button" class="story-info-button" data-action="toggle-info" aria-label="信息与设置" aria-expanded="${state.gameInfoOpen ? 'true' : 'false'}">设置</button>
         <h2><span>${scene.act}</span>${scene.title}</h2>
         <p class="mobile-count">${state.currentScene + 1} / ${scenes.length}</p>
       </div>
@@ -976,7 +996,7 @@ function renderInfoAuthorPage() {
   return `
     <div class="game-info-page author-page">
       <article class="game-info-card author-card">
-        <p class="author-inline"><strong>作者</strong><span>落星峦</span></p>
+        <p class="author-inline"><strong>作者</strong><a href="https://kw66.github.io/games/" target="_blank" rel="noreferrer">落星峦</a></p>
         <p class="author-inline"><a href="https://kw66.github.io/games/" target="_blank" rel="noreferrer">作者游戏合集</a></p>
       </article>
       <article class="game-info-card project-card">
@@ -1156,6 +1176,7 @@ function renderChoice(scene) {
         ${PIECES.map((piece) => renderSoulButton(scene, piece, selectedKey)).join('')}
       </div>
       ${renderSoulSelectionNote(scene, selectedPiece)}
+      ${selectedPiece ? renderChoiceRules(selectedPiece) : ''}
     </section>
   `;
 }
@@ -1200,7 +1221,7 @@ function renderSoulSelectionNote(scene, piece) {
       <strong>${piece.name}魂${confirmed ? '已确认' : (blocked ? '不能重复选择' : '待确认')}</strong>
       <p>${blocked
         ? '这枚棋魂已经在前面觉醒。'
-        : (confirmed ? '下一页查看棋魂图和完整走法。' : '点击底部按钮确认觉醒。')}</p>
+        : (confirmed ? '下一页查看棋魂图和觉醒描述。' : '下方可以先查看走法，点击底部按钮确认觉醒。')}</p>
     </div>
   `;
 }
@@ -1213,20 +1234,27 @@ function renderSoulEmpty(scene) {
   `;
 }
 
+function renderChoiceRules(piece) {
+  return `
+    <div class="choice-rules" aria-label="${piece.name}魂走法">
+      <strong>${piece.name}魂走法</strong>
+      <p class="choice-rule-core">${piece.core}</p>
+      <p>${piece.ability}</p>
+      ${renderRuleList(piece)}
+      <p class="choice-rule-example">${piece.example}</p>
+      <p class="choice-rule-note">${SOUL_RULE_NOTES[piece.key]}</p>
+    </div>
+  `;
+}
+
 function renderAbility(scene) {
   const pieceKey = scene.pieceKey;
   const piece = PIECE_BY_KEY[pieceKey];
   if (!piece) return '';
   return `
-    <section class="ability-card" aria-label="${piece.name}魂走法">
-      <strong>${piece.name}魂走法</strong>
-      <p>${piece.ability}</p>
-      ${renderRuleList(piece)}
-      <p>${SOUL_RULE_NOTES[piece.key]}</p>
-      <div class="ability-actions">
-        <button type="button" class="nav-btn secondary compact" data-action="back-choice" data-day="${scene.day}" data-slot="${scene.slot}">重新选择棋魂</button>
-      </div>
-    </section>
+    <div class="awakening-actions" aria-label="${piece.name}魂调整">
+      <button type="button" class="nav-btn secondary compact" data-action="back-choice" data-day="${scene.day}" data-slot="${scene.slot}">重新选择棋魂</button>
+    </div>
   `;
 }
 
