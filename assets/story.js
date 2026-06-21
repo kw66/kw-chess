@@ -185,6 +185,34 @@ const PIECES = [
 const PIECE_BY_KEY = Object.fromEntries(PIECES.map((piece) => [piece.key, piece]));
 const ALL_PIECE_KEYS = PIECES.map((piece) => piece.key);
 const TYPE_TO_PIECE_KEY = { R: 'rook', H: 'horse', C: 'cannon', P: 'pawn', A: 'advisor', B: 'bishop', K: 'king' };
+const HANDICAP_SOUL_SCORES = {
+  rook: 12,
+  horse: 15,
+  cannon: 14,
+  pawn: 10,
+  advisor: 9,
+  bishop: 9,
+  king: 16,
+};
+const HANDICAP_START_PIECES = [
+  { id: 'rook-left', key: 'rook', side: '左', col: 0, row: 9 },
+  { id: 'rook-right', key: 'rook', side: '右', col: 8, row: 9 },
+  { id: 'horse-left', key: 'horse', side: '左', col: 1, row: 9 },
+  { id: 'horse-right', key: 'horse', side: '右', col: 7, row: 9 },
+  { id: 'bishop-left', key: 'bishop', side: '左', col: 2, row: 9 },
+  { id: 'bishop-right', key: 'bishop', side: '右', col: 6, row: 9 },
+  { id: 'advisor-left', key: 'advisor', side: '左', col: 3, row: 9 },
+  { id: 'advisor-right', key: 'advisor', side: '右', col: 5, row: 9 },
+  { id: 'king-main', key: 'king', side: '', col: 4, row: 9 },
+  { id: 'cannon-left', key: 'cannon', side: '左', col: 1, row: 7 },
+  { id: 'cannon-right', key: 'cannon', side: '右', col: 7, row: 7 },
+  { id: 'pawn-1', key: 'pawn', side: '一路', col: 0, row: 6 },
+  { id: 'pawn-2', key: 'pawn', side: '二路', col: 2, row: 6 },
+  { id: 'pawn-3', key: 'pawn', side: '中路', col: 4, row: 6 },
+  { id: 'pawn-4', key: 'pawn', side: '四路', col: 6, row: 6 },
+  { id: 'pawn-5', key: 'pawn', side: '五路', col: 8, row: 6 },
+];
+const HANDICAP_START_BY_ID = Object.fromEntries(HANDICAP_START_PIECES.map((piece) => [piece.id, piece]));
 const SOUL_LIVE_HINTS = {
   rook: PIECES[0].shortHint,
   horse: PIECES[1].shortHint,
@@ -230,12 +258,14 @@ function normalizeState(saved) {
     ? saved.selected.filter((key, index, arr) => PIECE_BY_KEY[key] && arr.indexOf(key) === index).slice(0, 7)
     : [];
   const completedDays = Array.isArray(saved.completedDays)
-    ? saved.completedDays.map((day) => Math.trunc(Number(day))).filter((day) => day >= 1 && day <= 9)
+    ? saved.completedDays.map((day) => Math.trunc(Number(day))).filter((day) => day >= 1 && day <= 10)
     : [];
+  const handicapDisabled = sanitizeHandicapIds(saved.handicapDisabled || saved.handicapDisabledPieces || []);
   return {
     currentScene: Math.max(0, Math.trunc(Number(saved.currentScene) || 0)),
     maxScene: Math.max(0, Math.trunc(Number(saved.maxScene) || 0)),
     selected,
+    handicapDisabled,
     pendingChoice: {},
     editingSlot: null,
     completedDays,
@@ -259,6 +289,7 @@ function saveState() {
       currentScene: state.currentScene,
       maxScene: state.maxScene,
       selected: state.selected,
+      handicapDisabled: state.handicapDisabled,
       completedDays: state.completedDays,
       activeMatch: state.activeMatch,
       matchResults: state.matchResults,
@@ -280,6 +311,7 @@ function createSaveSnapshot(extra = {}) {
     currentScene: state.currentScene,
     maxScene: state.maxScene,
     selected: [...state.selected],
+    handicapDisabled: [...state.handicapDisabled],
     completedDays: [...state.completedDays],
     matchResults: JSON.parse(JSON.stringify(state.matchResults || {})),
     achievements: { ...(state.achievements || {}) },
@@ -666,7 +698,7 @@ function buildScenes() {
       id: 'ending',
       act: '尾声',
       title: '人类的奖杯',
-      kind: 'ending',
+      kind: 'story',
       image: {
         src: './assets/story-art/story-final-ai-trophy.webp',
         alt: '明亮展柜里八座冠军奖杯旁新增一座战胜 AI 的奖杯',
@@ -678,6 +710,58 @@ function buildScenes() {
         '但这一刻仍然属于人类。展柜的灯没有回答未来，只照着那座新的奖杯，也照着棋盘上还没有被完全解释的光。',
       ],
     });
+    scenes.push({
+      id: 'handicap-intro',
+      act: '终幕之后',
+      title: '让魂挑战',
+      kind: 'story',
+      quote: '战胜 AI 之后，你忽然想知道：如果把力量还给旧棋盘，自己还能让到哪里。',
+      body: [
+        '全魂对决已经结束。你赢了，但你也知道，AI 会继续训练。单纯赢一盘，并不是你能力的极限。真正能留下来的，是你能让出多少棋魂之后仍然获胜。',
+        '这一次双方开局都按七魂全开准备。不同的是，你在第一手之前主动选择若干棋魂不觉醒，让 AI 保持完整全魂。',
+        '让出的棋魂越关键，得分越高；车、马、炮、兵、仕、相这类成双棋子还会有额外加成。挑战获胜后，当前让魂分会成为你的最终分数。',
+      ],
+    });
+    scenes.push({
+      id: 'handicap-choice',
+      act: '终幕之后',
+      title: '选择让魂',
+      kind: 'handicap-choice',
+      quote: '不是删掉棋子，而是让它们回到未觉醒的旧规则里。',
+      body: [
+        '点击棋魂即可切换是否让出。你仍然先手执红，AI 执黑并保持七魂全开。',
+        '可以只让一枚棋魂，也可以尝试全部让出。选择越激进，获胜后的分数越高。',
+      ],
+    });
+    scenes.push({
+      id: 'match-handicap',
+      act: '最终挑战',
+      title: '极限让魂',
+      kind: 'match',
+      day: 10,
+      matchTitle: '极限让魂：最终分数',
+      objective: '你先手执红。AI 七魂全开，你按选择让出对应棋魂。获胜后记录让魂分。',
+      resultText: '让魂挑战完成。这个分数不是主线胜场，而是你在新棋盘里给自己留下的极限刻度。',
+      quote: '真正的极限，不是拥有全部力量时能不能赢，而是让出多少之后仍然能赢。',
+      body: [
+        'AI 没有退让。它仍然带着七枚觉醒棋魂坐在对面。',
+        '你把一部分棋魂按回旧规则里。棋盘变得更窄，也更像一次诚实的自测。',
+      ],
+    });
+    if (isDayCompleted(10)) {
+      scenes.push({
+        id: 'handicap-ending',
+        act: '挑战结算',
+        title: '最终分数',
+        kind: 'ending',
+        quote: '你把胜利从全魂对决里拿出来，又放回更窄的棋盘上称了一遍。',
+        body: [
+          `当前最佳让魂分：${getBestHandicapScore()}。`,
+          `最佳让魂组合：${formatHandicapKeys(state.achievements?.handicapBestSouls || [])}。`,
+          '这个分数会保存在本机进度里。以后你可以回到让魂挑战，选择更激进的组合刷新它。',
+        ],
+      });
+    }
   }
 
   return clampScenes(scenes);
@@ -788,6 +872,78 @@ function makeMatchScene(day, slot, pieceKey) {
   };
 }
 
+function getHandicapPairBonus(pieceKey) {
+  if (pieceKey === 'king') return 0;
+  return Math.ceil((HANDICAP_SOUL_SCORES[pieceKey] || 0) * 0.25);
+}
+
+function getHandicapPiecesByKey(pieceKey) {
+  return HANDICAP_START_PIECES.filter((piece) => piece.key === pieceKey);
+}
+
+function getHandicapSingleScore(pieceId) {
+  const piece = HANDICAP_START_BY_ID[pieceId];
+  if (!piece) return 0;
+  const count = getHandicapPiecesByKey(piece.key).length || 1;
+  return Math.ceil((HANDICAP_SOUL_SCORES[piece.key] || 0) / count);
+}
+
+function getHandicapScore(ids = state.handicapDisabled) {
+  const clean = sanitizeHandicapIds(ids);
+  const base = clean.reduce((sum, id) => sum + getHandicapSingleScore(id), 0);
+  const combo = ALL_PIECE_KEYS.reduce((sum, key) => {
+    const pieces = getHandicapPiecesByKey(key);
+    if (pieces.length <= 1) return sum;
+    return pieces.every((piece) => clean.includes(piece.id)) ? sum + getHandicapPairBonus(key) : sum;
+  }, 0);
+  return base + combo;
+}
+
+function getBestHandicapScore() {
+  return Math.max(0, Math.trunc(Number(state.achievements?.handicapBestScore) || 0));
+}
+
+function sanitizeHandicapIds(ids) {
+  if (!Array.isArray(ids)) return [];
+  const expanded = ids.flatMap((id) => {
+    if (HANDICAP_START_BY_ID[id]) return [id];
+    if (PIECE_BY_KEY[id]) return getHandicapPiecesByKey(id).map((piece) => piece.id);
+    return [];
+  });
+  return expanded.filter((id, index, arr) => HANDICAP_START_BY_ID[id] && arr.indexOf(id) === index);
+}
+
+function getHandicapDisabledKeys(ids = state.handicapDisabled) {
+  const clean = sanitizeHandicapIds(ids);
+  return ALL_PIECE_KEYS.filter((key) => getHandicapPiecesByKey(key).some((piece) => clean.includes(piece.id)));
+}
+
+function getHandicapEnabledKeys(ids = state.handicapDisabled) {
+  const clean = sanitizeHandicapIds(ids);
+  return ALL_PIECE_KEYS.filter((key) => getHandicapPiecesByKey(key).some((piece) => !clean.includes(piece.id)));
+}
+
+function formatHandicapKeys(ids = state.handicapDisabled) {
+  const clean = sanitizeHandicapIds(ids);
+  if (!clean.length) return '未让魂';
+  return clean.map((id) => formatHandicapPiece(id)).join('、');
+}
+
+function formatHandicapPiece(id) {
+  const item = HANDICAP_START_BY_ID[id];
+  if (!item) return '';
+  const piece = PIECE_BY_KEY[item.key];
+  return `${item.side}${piece.name}`;
+}
+
+function formatSoulKeys(keys, emptyText = '无') {
+  const clean = Array.isArray(keys)
+    ? keys.filter((key, index, arr) => PIECE_BY_KEY[key] && arr.indexOf(key) === index)
+    : [];
+  if (!clean.length) return emptyText;
+  return clean.map((key) => `${PIECE_BY_KEY[key].name}魂`).join('、');
+}
+
 function getScoreAfterDay(day) {
   const aiWins = day >= 1 ? 1 : 0;
   const playerWins = Math.max(0, Math.min(8, day - 1));
@@ -830,6 +986,12 @@ function completeCurrentScene() {
       confirmSoulChoice(scene.slot);
       return;
     }
+    return;
+  }
+  if (scene.kind === 'handicap-choice') {
+    state.handicapDisabled = sanitizeHandicapIds(state.handicapDisabled);
+    saveState();
+    moveToScene(state.currentScene + 1);
     return;
   }
   moveToScene(state.currentScene + 1);
@@ -1000,7 +1162,7 @@ function renderInfoAuthorPage() {
         <p class="author-inline"><a href="https://kw66.github.io/games/" target="_blank" rel="noreferrer">作者游戏合集</a></p>
       </article>
       <article class="game-info-card project-card">
-        <p><a href="https://github.com/kw66/kw-chess" target="_blank" rel="noreferrer"><span>项目地址</span><em>（求个 star）</em></a></p>
+        <p><a href="https://github.com/kw66/kw-chess" target="_blank" rel="noreferrer"><span>项目地址</span></a><em>（求个 star）</em></p>
         <p><span>小红书交流帖</span><em>暂未开放链接</em></p>
       </article>
     </div>
@@ -1104,13 +1266,15 @@ function renderStoryScene(scene) {
     </div>
     ${shouldShowScoreStrip(scene) ? renderScoreStrip() : ''}
     ${renderSceneImage(scene)}
-    ${scene.kind === 'choice' ? renderChoiceContext(scene) : scene.kind === 'match' ? '' : `
+    ${scene.kind === 'choice' ? renderChoiceContext(scene) : (scene.kind === 'match' || scene.kind === 'handicap-choice') ? '' : `
       <div class="story-text">
         ${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index)}</p>`).join('')}
       </div>
     `}
     ${scene.kind === 'choice' ? renderChoice(scene) : ''}
+    ${scene.kind === 'handicap-choice' ? renderHandicapChoice(scene) : ''}
     ${scene.kind === 'awakening' ? renderAbility(scene) : ''}
+    ${scene.kind === 'match' ? renderMatchBrief(scene) : ''}
     ${scene.kind === 'match' ? renderMatchText(scene) : ''}
   `;
 }
@@ -1179,6 +1343,68 @@ function renderChoice(scene) {
       ${selectedPiece ? renderChoiceRules(selectedPiece) : ''}
     </section>
   `;
+}
+
+function renderHandicapChoice(scene) {
+  const disabled = sanitizeHandicapIds(state.handicapDisabled);
+  const score = getHandicapScore(disabled);
+  const bestScore = getBestHandicapScore();
+  return `
+    <section class="choice-panel handicap-panel" aria-label="选择让魂棋子">
+      <div class="choice-head">
+        <strong>当前让魂分 ${score}</strong>
+        <span>历史最佳 ${bestScore}</span>
+      </div>
+      <div class="choice-context compact">
+        <p>${scene.body[0]}</p>
+        <p>${scene.body[1]}</p>
+      </div>
+      <div class="soul-picker" aria-label="让魂候选">
+        ${HANDICAP_START_PIECES.map((item) => renderHandicapButton(item, disabled.includes(item.id))).join('')}
+      </div>
+      <div class="handicap-summary">
+        <strong>${formatHandicapKeys(disabled)}</strong>
+        <p>${renderHandicapScoreFormula(disabled)}</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderHandicapButton(item, selected) {
+  const piece = PIECE_BY_KEY[item.key];
+  const single = getHandicapSingleScore(item.id);
+  const siblings = getHandicapPiecesByKey(item.key);
+  const selectedIds = sanitizeHandicapIds(state.handicapDisabled);
+  const pairReady = siblings.length > 1 && siblings.every((sibling) => sibling.id === item.id ? true : selectedIds.includes(sibling.id));
+  const pair = pairReady ? getHandicapPairBonus(item.key) : 0;
+  const scoreText = pair ? `${single}+${pair}分` : `${single}分`;
+  return `
+    <button
+      type="button"
+      class="soul-button handicap-button${selected ? ' selected' : ''}"
+      data-action="toggle-handicap-soul"
+      data-piece="${item.id}"
+      aria-pressed="${selected ? 'true' : 'false'}"
+    >
+      <span class="choice-piece" data-piece="${piece.name}"><span class="choice-piece-glyph">${piece.name}</span></span>
+      <span class="soul-button-text">
+        <strong>${selected ? '已让' : '保留'}${formatHandicapPiece(item.id)}</strong>
+        <small>${scoreText}${pair ? ' · 同类全让' : ''}</small>
+      </span>
+    </button>
+  `;
+}
+
+function renderHandicapScoreFormula(ids) {
+  const clean = sanitizeHandicapIds(ids);
+  if (!clean.length) return '未让出棋魂，获胜后分数为 0。';
+  const baseText = clean.map((id) => `${formatHandicapPiece(id)} ${getHandicapSingleScore(id)}`).join('，');
+  const comboText = ALL_PIECE_KEYS.map((key) => {
+    const pieces = getHandicapPiecesByKey(key);
+    if (pieces.length <= 1 || !pieces.every((piece) => clean.includes(piece.id))) return '';
+    return `${PIECE_BY_KEY[key].name}类全让 +${getHandicapPairBonus(key)}`;
+  }).filter(Boolean).join('，');
+  return comboText ? `${baseText}；${comboText}` : baseText;
 }
 
 function renderSoulButton(scene, piece, selectedKey) {
@@ -1307,6 +1533,17 @@ function renderMatchBrief(scene) {
 }
 
 function getMatchBrief(scene) {
+  if (scene.day === 10) {
+    return {
+      badge: `让魂分 ${getHandicapScore()}`,
+      items: [
+        { label: '保留觉醒', value: formatSoulKeys(getHandicapEnabledKeys()) },
+        { label: '你方让出', value: formatHandicapKeys() },
+        { label: 'AI 状态', value: '七魂全开' },
+      ],
+      tip: '你先手执红。获胜后，当前让魂分会写入最佳挑战分。',
+    };
+  }
   if (scene.day === 1) {
     return {
       badge: '旧棋对决',
@@ -1344,6 +1581,7 @@ function getMatchBrief(scene) {
 }
 
 function getPrimaryActionLabel(scene) {
+  if (scene.kind === 'handicap-choice') return '开始让魂挑战';
   if (scene.kind === 'choice') {
     const previewKey = getChoicePreviewKey(scene.slot);
     if (!previewKey) return '选择棋魂';
@@ -1404,6 +1642,7 @@ function renderEmbeddedMatch(scene) {
 
 function getDefaultLiveHint(scene) {
   if (scene.day === 1) return '第一局没有棋魂，先感受旧棋盘里的差距。';
+  if (scene.day === 10) return `让魂挑战：你已让出${formatHandicapKeys()}，当前让魂分 ${getHandicapScore()}。`;
   if (scene.day === 9) return '双方全魂觉醒。点击带星棋子，查看它此刻能打出的能力。';
   const piece = PIECE_BY_KEY[scene.pieceKey];
   return `今日新魂：${piece.name}。点击带星棋子，查看棋魂能力提示。`;
@@ -1433,10 +1672,17 @@ function buildGameSrc(scene) {
   if (config.mode === 'classic') params.set('classic', '1');
   if (config.redUpgrades.length) params.set('pu', config.redUpgrades.join(','));
   if (config.blackUpgrades.length) params.set('au', config.blackUpgrades.join(','));
+  if (config.redHandicapDisabled?.length) {
+    params.set('phu', config.redHandicapDisabled.map((id) => {
+      const item = HANDICAP_START_BY_ID[id];
+      return `${item.col}_${item.row}`;
+    }).join(','));
+  }
   return `./index-legacy.html?${params.toString()}`;
 }
 
 function getPlayerSideForDay(day) {
+  if (Number(day) === 10) return 'red';
   return Number(day) % 2 === 0 ? 'black' : 'red';
 }
 
@@ -1458,11 +1704,28 @@ function buildSideMatchConfig(day, playerUpgrades, aiUpgrades) {
 }
 
 function getMatchConfig(scene) {
+  if (scene.day === 10) {
+    const disabled = sanitizeHandicapIds(state.handicapDisabled);
+    const playerUpgrades = getHandicapEnabledKeys(disabled);
+    return {
+      levelId: 110,
+      mode: 'mixed',
+      aiTime: 5000,
+      aiStrength: 'story',
+      playerSide: 'red',
+      aiSide: 'black',
+      playerUpgrades,
+      aiUpgrades: ALL_PIECE_KEYS,
+      redHandicapDisabled: disabled,
+      redUpgrades: playerUpgrades,
+      blackUpgrades: ALL_PIECE_KEYS,
+    };
+  }
   if (scene.day === 1) {
     return {
       levelId: 101,
       mode: 'classic',
-      aiTime: 2500,
+      aiTime: 5000,
       aiStrength: 'story',
       ...buildSideMatchConfig(scene.day, [], []),
     };
@@ -1471,7 +1734,7 @@ function getMatchConfig(scene) {
     return {
       levelId: 109,
       mode: 'mixed',
-      aiTime: 4500,
+      aiTime: 5000,
       aiStrength: 'story',
       ...buildSideMatchConfig(scene.day, ALL_PIECE_KEYS, ALL_PIECE_KEYS),
     };
@@ -1482,7 +1745,7 @@ function getMatchConfig(scene) {
   return {
     levelId: 100 + scene.day,
     mode: 'mixed',
-    aiTime: 4000,
+    aiTime: 5000,
     aiStrength: 'story',
     ...buildSideMatchConfig(scene.day, playerUpgrades, aiUpgrades),
   };
@@ -1495,11 +1758,16 @@ function postGameCommand(command, payload = {}) {
 }
 
 function completeMatchFromGame(scene, stats) {
+  const handicapScore = scene.day === 10 ? getHandicapScore() : null;
   state.matchResults[scene.id] = {
     outcome: stats?.outcome || 'unknown',
     win: !!stats?.win,
     totalMoves: Math.max(0, Math.trunc(Number(stats?.totalMoves) || 0)),
     totalKills: Object.values(stats?.redKillsByType || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0),
+    ...(handicapScore === null ? {} : {
+      handicapScore,
+      handicapDisabled: sanitizeHandicapIds(state.handicapDisabled),
+    }),
   };
   if (!matchGoalReached(scene, stats)) {
     saveState();
@@ -1508,6 +1776,14 @@ function completeMatchFromGame(scene, stats) {
   }
   if (!state.completedDays.includes(scene.day)) state.completedDays.push(scene.day);
   state.completedDays.sort((a, b) => a - b);
+  if (scene.day === 10) {
+    const bestScore = getBestHandicapScore();
+    if (handicapScore >= bestScore) {
+      state.achievements.handicapBestScore = handicapScore;
+      state.achievements.handicapBestSouls = sanitizeHandicapIds(state.handicapDisabled);
+      state.achievements.handicapBestAt = new Date().toISOString();
+    }
+  }
   saveAutoClearanceIfNeeded();
   saveState();
   showMatchFinishedPanel(scene, true);
@@ -1539,6 +1815,16 @@ function isChoiceEditing(slot) {
 function canUseSoulAtSlot(slot, pieceKey) {
   const usedSlot = state.selected.indexOf(pieceKey);
   return usedSlot < 0 || usedSlot >= slot;
+}
+
+function toggleHandicapSoul(pieceId) {
+  if (!HANDICAP_START_BY_ID[pieceId]) return;
+  const current = sanitizeHandicapIds(state.handicapDisabled);
+  state.handicapDisabled = current.includes(pieceId)
+    ? current.filter((id) => id !== pieceId)
+    : [...current, pieceId];
+  saveState();
+  render();
 }
 
 function previewSoulChoice(slot, pieceKey) {
@@ -1655,6 +1941,10 @@ function showMatchFinishedPanel(scene, goalReached) {
       hint.textContent = result?.win
         ? '第一局结束。你赢下了旧棋盘上的最后一段路。'
         : '第一局结束。旧棋盘里的路被 AI 一点点算完了。';
+    } else if (scene.day === 10) {
+      hint.textContent = goalReached
+        ? `让魂挑战成功，当前让魂分 ${result?.handicapScore || 0}。`
+        : '让魂挑战失败。可以减少让魂，或重开再冲一次。';
     } else {
       hint.textContent = goalReached
         ? '本局获胜。今天的新信息已经留在棋盘上。'
@@ -1721,6 +2011,7 @@ function handleStoryAction(button, event) {
   if (action === 'track') goScene(Number(button.dataset.index));
   if (action === 'exit-match') closeMatch();
   if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
+  if (action === 'toggle-handicap-soul') toggleHandicapSoul(button.dataset.piece);
   if (action === 'toggle-info') toggleGameInfoPanel();
   if (action === 'close-info') toggleGameInfoPanel(false);
   if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);
@@ -1757,6 +2048,7 @@ function bindLegacyEvents() {
       if (action === 'track') goScene(Number(button.dataset.index));
       if (action === 'exit-match') closeMatch();
       if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
+      if (action === 'toggle-handicap-soul') toggleHandicapSoul(button.dataset.piece);
       if (action === 'toggle-info') toggleGameInfoPanel();
       if (action === 'close-info') toggleGameInfoPanel(false);
       if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);

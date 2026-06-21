@@ -435,8 +435,22 @@ function _parseUpgrades(name) {
   v.split(',').forEach(k => { const t = k.trim(); if (t) obj[t] = true; });
   return obj;
 }
+function _parsePositionSet(name) {
+  const v = _urlParams.get(name);
+  const set = new Set();
+  if (!v) return set;
+  v.split(',').forEach(token => {
+    const parts = token.trim().split('_');
+    if (parts.length !== 2) return;
+    const col = Number(parts[0]);
+    const row = Number(parts[1]);
+    if (Number.isInteger(col) && Number.isInteger(row)) set.add(`${col}_${row}`);
+  });
+  return set;
+}
 const _PLAYER_UPGRADES = _parseUpgrades('pu'); // RED 方升级棋子
 const _AI_UPGRADES     = _parseUpgrades('au'); // BLACK 方升级棋子
+const _PLAYER_HANDICAP_UNUPGRADED = _parsePositionSet('phu'); // RED 方指定开局坐标不觉醒
 
 // ─────────────────────────────────────────────
 //  游戏统计（用于关卡星星判定，via postMessage）
@@ -527,7 +541,11 @@ function isPieceUpgraded(type, owner) {
 function initBoard() {
   const b = emptyBoard();
   const place = (row, col, type, owner) => b[row][col] = {
-    type, owner, layer: 1, groups: [1], upgraded: isPieceUpgraded(type, owner)
+    type,
+    owner,
+    layer: 1,
+    groups: [1],
+    upgraded: owner === RED && _PLAYER_HANDICAP_UNUPGRADED.has(`${col}_${row}`) ? false : isPieceUpgraded(type, owner)
   };
 
   // 黑方 row 0 底线
@@ -3459,7 +3477,7 @@ const AI = (() => {
   // ── 子力价值 ──
   // 传统象棋：马/炮/士象均为传统价值；科王象棋：马/炮大幅增强，士象也增强
   // 三套独立的材料价值表（对应训练分别得到的三个 AI）
-  const CLASSIC_VAL = { K:10000, R:900,  C:500,  H:380,  B:200, A:200, P:100 };
+  const CLASSIC_VAL = { K:10000, R:900,  C:450,  H:400,  B:200, A:200, P:100 };
   const KW_VAL      = { K:10000, R:900,  C:780,  H:780,  B:380, A:380, P:100 };
   // MIXED_VAL：部分觉醒规则下的独立棋子价值表
   const MIXED_VAL   = { K:10000, R:1115, C:1004, H:1327, B:496, A:423, P:390 };
@@ -4414,6 +4432,7 @@ const AI = (() => {
     const moves = genAll(board, owner);
     if (!moves.length) return evaluate(board, owner);
     moves.sort((a, b) => moveScore(b, board, ply, ttMove, prevMv) - moveScore(a, board, ply, ttMove, prevMv));
+    const searchMoves = limitSearchMoves(moves, depth, ply);
 
     // ── 当前方是否被将军（LMP/History Pruning 在被将军时跳过）──
     const inCheck = isInCheck(board, owner);
@@ -4423,8 +4442,8 @@ const AI = (() => {
     // ── LMP 阈值表：depth → 最多搜索的安静走法数 ──
     const LMP_LIMITS = [0, 8, 14, 22];
 
-    for (let mi = 0, quietCount = 0; mi < moves.length; mi++) {
-      const m = moves[mi];
+    for (let mi = 0, quietCount = 0; mi < searchMoves.length; mi++) {
+      const m = searchMoves[mi];
       const isQuiet = m.kind === 'move' && !isKiller(ply, m);
 
       // ── Late Move Pruning：浅层跳过排名靠后的安静走法 ──
@@ -4498,6 +4517,47 @@ const AI = (() => {
   // ══════════════════════════════════════════════
   const ROOT_VARIETY = 10; // 根节点多样化容差（分）—— 对局游戏减小随机性
 
+  function classicImmediateTradePenalty(board, owner, move) {
+    if (!_CLASSIC || move.kind !== 'eat') return 0;
+    const src = board[move.srcRow]?.[move.srcCol];
+    const tgt = board[move.row]?.[move.col];
+    if (!src || !tgt || tgt.type === TYPE.KING) return 0;
+    const srcVal = pieceVal(src);
+    const tgtVal = pieceVal(tgt);
+    const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+    if (!searchMoveAllowedAfter(nb, owner, kc)) return 0;
+    const landed = nb[move.row]?.[move.col];
+    if (!landed || landed.owner !== owner || landed.type !== src.type) return 0;
+    for (const reply of genAll(nb, enemy(owner))) {
+      if (reply.kind !== 'eat' || reply.col !== move.col || reply.row !== move.row) continue;
+      const { board: rb, kingCaptured: rkc } = applyMove(nb, reply.srcCol, reply.srcRow, reply);
+      if (!searchMoveAllowedAfter(rb, enemy(owner), rkc)) continue;
+      return Math.max(1200, srcVal - tgtVal + 1200);
+    }
+    return 0;
+  }
+
+  function classicRootTradeUnsafe(board, owner, move) {
+    return classicImmediateTradePenalty(board, owner, move) > 0;
+  }
+
+  function searchMoveLimit(depth, ply) {
+    if (_CLASSIC) return Infinity;
+    if (ply === 0) {
+      if (depth >= 6) return 30;
+      if (depth >= 4) return 36;
+      return 48;
+    }
+    if (depth >= 5) return ply <= 2 ? 26 : 20;
+    if (depth >= 3) return ply <= 2 ? 32 : 24;
+    return 40;
+  }
+
+  function limitSearchMoves(moves, depth, ply) {
+    const limit = searchMoveLimit(depth, ply);
+    return Number.isFinite(limit) && moves.length > limit ? moves.slice(0, limit) : moves;
+  }
+
   function bestMove(board, owner, ms, history) {
     const dl = Date.now() + ms;
     let best = null;
@@ -4522,11 +4582,13 @@ const AI = (() => {
 
     const ASPIRATION_INIT = 40; // 初始窗口半径（分）
 
+    const minAcceptedDepth = 2;
     for (let d = 1; d <= 20; d++) {
       const hash = hashBoard(board, owner);
       const ttHit = ttProbe(hash, 0, 0, 0);
       const ttM = ttHit?.move || null;
       moves.sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null));
+      const searchMoves = limitSearchMoves(moves, d, 0);
 
       // ── Aspiration Windows：从第4层起用对称窗口，失败则指数扩宽后重搜 ──
       let aspirDelta = ASPIRATION_INIT;
@@ -4540,8 +4602,9 @@ const AI = (() => {
         const depthScores = [];
         let failLow = false, failHigh = false;
 
-        for (let ri = 0; ri < moves.length; ri++) {
-          const m = moves[ri];
+        for (let ri = 0; ri < searchMoves.length; ri++) {
+          const m = searchMoves[ri];
+          if (classicRootTradeUnsafe(board, owner, m)) { depthScores.push({ m, v: -Infinity }); continue; }
           const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
           if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
           if (kc === enemy(owner)) return m;
@@ -4563,6 +4626,7 @@ const AI = (() => {
             }
           }
           if (stopped) break;
+          if (_CLASSIC) v -= classicImmediateTradePenalty(board, owner, m);
           depthScores.push({ m, v, exact });
           if (v > alpha) { alpha = v; dBest = m; }
         }
@@ -4583,8 +4647,14 @@ const AI = (() => {
           continue;
         }
 
-        // 窗口成功
-        if (dBest) { best = dBest; prevScore = alpha; lastScores = depthScores; }
+        // 窗口成功。普通根着至少完成 2 ply 后才接受，避免 depth1 只看到一手吃子。
+        if (dBest) {
+          if (d >= minAcceptedDepth) {
+            best = dBest;
+            lastScores = depthScores;
+          }
+          prevScore = alpha;
+        }
         console.log(`AI depth${d}${retry>0?'(retry'+retry+')':''}: ${alpha} (${nodes}节点)`);
         if (alpha > 90000) { stopped = true; }
         break;
@@ -4594,7 +4664,7 @@ const AI = (() => {
     }
 
     // 根节点多样化：仅在已精确评分的走法中随机选，避免把零窗口探测的虚高分误当等优走法
-    if (lastScores && lastScores.length > 0) {
+    if (!_CLASSIC && lastScores && lastScores.length > 0) {
       const bestScore = Math.max(...lastScores.filter(s => s.exact).map(s => s.v));
       const candidates = lastScores.filter(s => s.exact && s.v >= bestScore - ROOT_VARIETY && s.v > -90000);
       if (candidates.length > 1) best = candidates[Math.floor(Math.random() * candidates.length)].m;
@@ -4628,11 +4698,50 @@ const AI = (() => {
     return safe.length ? safe[Math.floor(Math.random() * safe.length)] : (moves[0] || null);
   }
 
+  function classicTwoPlyFallback(board, owner, moves) {
+    let bestMove = null;
+    let bestScore = -Infinity;
+    for (const m of moves) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      let ownerScore;
+      if (kc === enemy(owner)) {
+        ownerScore = 99999;
+      } else if (kc === 'draw') {
+        ownerScore = 0;
+      } else {
+        let worstScore = Infinity;
+        let replied = false;
+        for (const reply of genAll(nb, enemy(owner))) {
+          const { board: rb, kingCaptured: rkc } = applyMove(nb, reply.srcCol, reply.srcRow, reply);
+          if (!searchMoveAllowedAfter(rb, enemy(owner), rkc)) continue;
+          replied = true;
+          let redScore;
+          if (rkc === owner) redScore = owner === RED ? -99999 : 99999;
+          else if (rkc === enemy(owner)) redScore = owner === RED ? 99999 : -99999;
+          else if (rkc === 'draw') redScore = 0;
+          else redScore = evaluate(rb, RED);
+          const score = owner === RED ? redScore : -redScore;
+          if (score < worstScore) worstScore = score;
+        }
+        if (!replied) worstScore = owner === RED ? evaluate(nb, RED) : -evaluate(nb, RED);
+        ownerScore = worstScore;
+      }
+      ownerScore -= classicImmediateTradePenalty(board, owner, m);
+      if (ownerScore > bestScore) {
+        bestScore = ownerScore;
+        bestMove = m;
+      }
+    }
+    return bestMove || fallbackRootMove(board, owner, moves);
+  }
+
   function searchRootDepth(board, owner, moves, depth, dl, prevScore) {
     const hash = hashBoard(board, owner);
     const ttHit = ttProbe(hash, 0, 0, 0);
     const ttM = ttHit?.move || null;
     moves.sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null));
+    const searchMoves = limitSearchMoves(moves, depth, 0);
 
     const ASPIRATION_INIT = 40;
     let aspirDelta = ASPIRATION_INIT;
@@ -4645,9 +4754,10 @@ const AI = (() => {
       let dBest = null;
       const depthScores = [];
 
-      for (let ri = 0; ri < moves.length; ri++) {
+      for (let ri = 0; ri < searchMoves.length; ri++) {
         if (Date.now() > dl || ponderAbort) { stopped = true; break; }
-        const m = moves[ri];
+        const m = searchMoves[ri];
+        if (classicRootTradeUnsafe(board, owner, m)) { depthScores.push({ m, v: -Infinity }); continue; }
         const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
         if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
         if (kc === enemy(owner)) return { completed: true, best: m, score: 99999 + depth, scores: [{ m, v: 99999 + depth, exact: true }], mate: true };
@@ -4669,6 +4779,7 @@ const AI = (() => {
           }
         }
         if (stopped) break;
+        if (_CLASSIC) v -= classicImmediateTradePenalty(board, owner, m);
         depthScores.push({ m, v, exact });
         if (v > alpha) { alpha = v; dBest = m; }
       }
@@ -4703,6 +4814,7 @@ const AI = (() => {
     let lastScores = null;
     let prevScore = 0;
     let depth = 1;
+    const minAcceptedDepth = 2;
     nodes = 0; stopped = false; ponderAbort = false;
     for (let i = 0; i < MAX_PLY; i++) killers[i] = [null, null];
 
@@ -4724,11 +4836,11 @@ const AI = (() => {
       const sliceDeadline = Date.now() + Math.max(40, Math.min(sliceMs, remaining));
       stopped = false;
       const result = searchRootDepth(board, owner, moves, depth, sliceDeadline, prevScore);
-      if (result.best) {
+      if (result.best && depth >= minAcceptedDepth) {
         best = result.best;
         lastScores = result.scores || lastScores;
-        if (result.completed) prevScore = result.score;
       }
+      if (result.completed) prevScore = result.score;
       if (result.completed) {
         console.log(`AI depth${depth}: ${result.score} (${nodes}节点)`);
         if (result.mate || result.score > 90000) break;
@@ -4738,8 +4850,10 @@ const AI = (() => {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
 
-    if (best) best = pickRootVariety(lastScores, best);
-    if (!ponderAbort && shouldContinue() && !best) best = fallbackRootMove(board, owner, moves);
+    if (best && !_CLASSIC) best = pickRootVariety(lastScores, best);
+    if (!ponderAbort && shouldContinue() && !best) {
+      best = _CLASSIC ? classicTwoPlyFallback(board, owner, moves) : fallbackRootMove(board, owner, moves);
+    }
     return ponderAbort || !shouldContinue() ? null : best;
   }
 
@@ -4760,16 +4874,30 @@ const AI = (() => {
   // 返回值始终为红方视角，供胜率条显示。
   function displayEval(board, nextMover) {
     const owner = nextMover || RED;
-    nodes = 0;
-    stopped = false;
-    gameHashes.clear();
-    for (const entry of game.history || []) gameHashes.add(hashBoard(entry.board, entry.turn));
-    searchPath[0] = hashBoard(board, owner);
-    const depth = _CLASSIC ? 2 : 2;
-    const dl = Date.now() + (_CLASSIC ? 90 : 120);
-    const raw = negamax(board, depth, -100000, 100000, owner, dl, 0, false);
-    const score = stopped ? evaluate(board, owner) : raw;
-    return owner === RED ? score : -score;
+    const baseRedScore = evaluate(board, RED);
+    const moves = genAll(board, owner);
+    if (!moves.length) return baseRedScore;
+    let bestOwnerScore = -Infinity;
+    let bestRedScore = baseRedScore;
+    for (const move of moves) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      let redScore;
+      if (kc === RED) redScore = -99980;
+      else if (kc === BLACK) redScore = 99980;
+      else if (kc === 'draw') redScore = 0;
+      else redScore = evaluate(nb, RED);
+      const ownerScore = owner === RED ? redScore : -redScore;
+      if (ownerScore > bestOwnerScore) {
+        bestOwnerScore = ownerScore;
+        bestRedScore = redScore;
+      }
+    }
+    if (bestOwnerScore === -Infinity) return baseRedScore;
+    const replyDelta = bestRedScore - baseRedScore;
+    const maxDelta = _CLASSIC ? 180 : 260;
+    const weight = _CLASSIC ? 0.45 : 0.5;
+    return baseRedScore + clampNumber(replyDelta, -maxDelta, maxDelta) * weight;
   }
 
   // ── Pondering：利用对手时间持续思考，预热 TT ──
