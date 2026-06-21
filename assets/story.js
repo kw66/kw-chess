@@ -1359,9 +1359,7 @@ function renderHandicapChoice(scene) {
         <p>${scene.body[0]}</p>
         <p>${scene.body[1]}</p>
       </div>
-      <div class="soul-picker" aria-label="让魂候选">
-        ${HANDICAP_START_PIECES.map((item) => renderHandicapButton(item, disabled.includes(item.id))).join('')}
-      </div>
+      ${renderHandicapBoard(disabled)}
       <div class="handicap-summary">
         <strong>${formatHandicapKeys(disabled)}</strong>
         <p>${renderHandicapScoreFormula(disabled)}</p>
@@ -1370,27 +1368,42 @@ function renderHandicapChoice(scene) {
   `;
 }
 
-function renderHandicapButton(item, selected) {
+function renderHandicapBoard(disabled) {
+  const cells = [];
+  for (let row = 0; row < 10; row += 1) {
+    for (let col = 0; col < 9; col += 1) {
+      const item = HANDICAP_START_PIECES.find((piece) => piece.row === row && piece.col === col);
+      cells.push(renderHandicapBoardCell(row, col, item, item ? disabled.includes(item.id) : false));
+    }
+  }
+  return `
+    <div class="handicap-board-wrap" aria-label="开局棋盘让魂选择">
+      <div class="handicap-board" role="grid" aria-label="点击红方棋子切换让魂">
+        ${cells.join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderHandicapBoardCell(row, col, item, selected) {
+  if (!item) return `<span class="handicap-cell" role="gridcell" data-row="${row}" data-col="${col}"></span>`;
   const piece = PIECE_BY_KEY[item.key];
   const single = getHandicapSingleScore(item.id);
-  const siblings = getHandicapPiecesByKey(item.key);
-  const selectedIds = sanitizeHandicapIds(state.handicapDisabled);
-  const pairReady = siblings.length > 1 && siblings.every((sibling) => sibling.id === item.id ? true : selectedIds.includes(sibling.id));
-  const pair = pairReady ? getHandicapPairBonus(item.key) : 0;
-  const scoreText = pair ? `${single}+${pair}分` : `${single}分`;
+  const selectedText = selected ? '已让' : '保留';
   return `
     <button
       type="button"
-      class="soul-button handicap-button${selected ? ' selected' : ''}"
+      class="handicap-cell has-piece${selected ? ' selected' : ''}"
+      role="gridcell"
       data-action="toggle-handicap-soul"
       data-piece="${item.id}"
+      data-row="${row}"
+      data-col="${col}"
       aria-pressed="${selected ? 'true' : 'false'}"
+      aria-label="${selectedText}${formatHandicapPiece(item.id)}，${single}分"
     >
-      <span class="choice-piece" data-piece="${piece.name}"><span class="choice-piece-glyph">${piece.name}</span></span>
-      <span class="soul-button-text">
-        <strong>${selected ? '已让' : '保留'}${formatHandicapPiece(item.id)}</strong>
-        <small>${scoreText}${pair ? ' · 同类全让' : ''}</small>
-      </span>
+      <span class="handicap-piece-glyph">${piece.name}</span>
+      <small>${selected ? '让' : single}</small>
     </button>
   `;
 }
