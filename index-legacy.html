@@ -1084,6 +1084,24 @@ function applyGroupDamage(groups, damage) {
   return result.filter(x => x !== undefined);
 }
 
+function canSplitPiece(piece) {
+  return !_CLASSIC && !!piece && piece.upgraded !== false
+    && piece.type !== TYPE.KING
+    && piece.layer > 1
+    && (!piece.groups || piece.groups.length === 1);
+}
+
+function canMergePiece(piece) {
+  return !_CLASSIC && !!piece && piece.upgraded !== false
+    && piece.type !== TYPE.KING
+    && !!piece.groups
+    && piece.groups.length > 1;
+}
+
+function getDefaultMoveLayers(piece) {
+  return piece.type === TYPE.KING ? piece.layer : (piece.groups ? piece.groups[0] : piece.layer);
+}
+
 // ─────────────────────────────────────────────
 //  执行走法，返回 { newBoard, log[], kingCaptured }
 //  log: 文字描述效果
@@ -1133,6 +1151,7 @@ function applyMove(board, srcCol, srcRow, move) {
             else { tgt.groups[tgt.groups.length-1] -= excess; excess = 0; }
           }
         }
+        tgt.upgraded = tgt.upgraded !== false || srcCell.upgraded !== false;
         tgt.layer = newLayer;
         // 兵叠层后自动合体（不需要额外操作，范围立即生效）
         if (tgt.type === TYPE.PAWN && tgt.groups) tgt.groups = [tgt.layer];
@@ -1362,6 +1381,7 @@ function applyMove(board, srcCol, srcRow, move) {
           else { landTarget.groups[landTarget.groups.length-1] -= excess; excess = 0; }
         }
       }
+      landTarget.upgraded = landTarget.upgraded !== false || pushed.upgraded !== false;
       landTarget.layer = newLayer;
       if (landTarget.type === TYPE.PAWN && landTarget.groups) landTarget.groups = [landTarget.layer];
       log.push(`车冲撞→推${pushed.type}叠入同类(${pushed.layer}+${oldTgtLayer}→${newLayer}层)${remDesc}`);
@@ -1453,15 +1473,20 @@ function applyMove(board, srcCol, srcRow, move) {
 
   // ── 合体 ──
   if (kind === 'merge') {
+    if (!canMergePiece(piece)) {
+      log.push(`${piece.type}不能合体`);
+      return { board: b, log, kingCaptured };
+    }
     b[srcRow][srcCol] = { ...piece, groups: [piece.layer] };
     log.push(`${piece.type}合体→${piece.layer}层`);
     return { board: b, log, kingCaptured };
   }
 
   // ── 普通移动/叠层/吃子 ──
-  // move.layers: 本次带走几层（默认用顶组层数）
-  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
-  const moveLayers = move.layers !== undefined ? move.layers : topGroup;
+  // move.layers: 本次带走几层（非王默认用顶组；王始终整枚行动）
+  const topGroup = getDefaultMoveLayers(piece);
+  let moveLayers = move.layers !== undefined ? move.layers : topGroup;
+  if (piece.type === TYPE.KING) moveLayers = topGroup;
   // movedGroups：本次带走的 groups（单组，层数=moveLayers）
   // 对合体棋子拆分：movedGroups=[moveLayers]；对未合体：movedGroups=[topGroup]==[moveLayers]
   const movedGroups = piece.groups ? [moveLayers] : null;
@@ -1530,7 +1555,7 @@ function assessKingDanger(board, owner) {
       if (!p || p.owner !== opp) continue;
       const ms = generateMoves(board, c, r);
 
-      const pTopGroup = p.groups ? p.groups[0] : p.layer;
+      const pTopGroup = getDefaultMoveLayers(p);
       for (const m of ms) {
         // ① 直接吃王：用 combatResult 快速判断（不需要模拟）
         if (m.col === king.col && m.row === king.row && m.kind === 'eat') {
@@ -1557,7 +1582,7 @@ function assessKingDanger(board, owner) {
 
   // 对有副作用的走法做全量模拟
   for (const { c, r, p, m } of needSim) {
-    const pTop = p.groups ? p.groups[0] : p.layer;
+    const pTop = getDefaultMoveLayers(p);
     const sim = applyMove(board, c, r, { ...m, layers: pTop });
     if (sim.kingCaptured === owner) return 'fatal';
     const k2 = findKing(sim.board, owner);
@@ -1987,11 +2012,18 @@ function summarizeLegalMoves(moves) {
 function describeLayerStatus(piece) {
   if (_CLASSIC || !piece || piece.upgraded === false) return '';
   if (!piece || piece.layer <= 1) return '';
+  if (piece.type === TYPE.KING) return `当前${piece.layer}层，帅必须整体行动，不能拆分。`;
   const isPawn = piece.type === TYPE.PAWN;
   const groups = piece.groups && piece.groups.length > 1
     ? `，当前为${piece.groups.join('+')}层未合体`
     : '';
-  return `当前${piece.layer}层${groups}，双击可${isPawn ? '拆分或自爆' : '拆分/合体'}。`;
+  const actions = [];
+  if (canSplitPiece(piece)) actions.push('拆分');
+  if (canMergePiece(piece)) actions.push('合体');
+  if (isPawn) actions.push('自爆');
+  return actions.length
+    ? `当前${piece.layer}层${groups}，双击可${actions.join('或')}。`
+    : `当前${piece.layer}层${groups}。`;
 }
 
 function describeLayerMenu(piece) {
@@ -2053,6 +2085,8 @@ function postGameStatus() {
       aiEnabled: !!aiState.enabled,
       aiSide: aiState.side,
       playerSide: getPlayerSide(),
+      winner: game.winner,
+      playerWon: game.gameOver && !game.isDraw && game.winner === getPlayerSide(),
       aiThinking: !!aiState.thinking,
       aiTurn: isAITurn(),
       aiTime: aiState.timeLimit,
@@ -2069,7 +2103,7 @@ function selectPiece(col, row) {
   if (!piece || piece.owner !== game.turn) return;
   game.selected = { col, row };
   game.phase = 'pickTarget';
-  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
+  const topGroup = getDefaultMoveLayers(piece);
   game.chosenLayers = topGroup;
   game.hoverIdx = null;
   game.specialMode = false;
@@ -2097,7 +2131,7 @@ function hasAnyLegalMove(board, owner) {
     for (let c = 0; c < COLS; c++) {
       const p = board[r][c];
       if (!p || p.owner !== owner) continue;
-      const topGroup = p.groups ? p.groups[0] : p.layer;
+      const topGroup = getDefaultMoveLayers(p);
       for (const m of generateMoves(board, c, r)) {
         const { board: nb, kingCaptured: kc } = applyMove(board, c, r, { srcCol: c, srcRow: r, ...m, layers: topGroup });
         if (kc === owner) continue; // 自杀走法
@@ -2120,9 +2154,10 @@ async function executeMove(move) {
   const srcCol = game.selected.col, srcRow = game.selected.row;
   const piece = { ...game.board[srcRow][srcCol] };
   const oldBoard = cloneBoard(game.board); // 动画前快照，用于 diffCaptures
-  const topGroup = piece.groups ? piece.groups[0] : piece.layer;
-  const moveLayers = move.layers !== undefined ? move.layers : topGroup;
-  const isSplit = piece.groups ? piece.groups.length > 1 : moveLayers < piece.layer;
+  const topGroup = getDefaultMoveLayers(piece);
+  let moveLayers = move.layers !== undefined ? move.layers : topGroup;
+  if (piece.type === TYPE.KING) moveLayers = topGroup;
+  const isSplit = piece.type !== TYPE.KING && (piece.groups ? piece.groups.length > 1 : moveLayers < piece.layer);
   const isStack = move.kind === 'stack';
   if (move.kind === 'explode' && (_CLASSIC || piece.type !== TYPE.PAWN || piece.upgraded === false)) {
     showPieceHint(piece, '这枚兵还没有觉醒，不能自爆。');
@@ -2386,7 +2421,7 @@ async function executeMove(move) {
 }
 
 function undoMove() {
-  if (anim.playing || !game.history.length) return;
+  if (anim.playing || !game.history.length || hasLockedWinningResult()) return;
   abortAIThinking();
   const prev = game.history.pop();
   logUndo();
@@ -2418,8 +2453,12 @@ function undoMove() {
   }
 }
 
+function hasLockedWinningResult() {
+  return game.gameOver && !game.isDraw && game.winner === getPlayerSide();
+}
+
 function undoCommand() {
-  if (anim.playing || !game.history.length) return;
+  if (anim.playing || !game.history.length || hasLockedWinningResult()) return;
   const lastSnapshot = game.history[game.history.length - 1];
   const lastMover = lastSnapshot?.turn;
   const steps = aiState.enabled && lastMover === aiState.side && game.history.length >= 2 ? 2 : 1;
@@ -2827,11 +2866,11 @@ function getPieceSectors(piece) {
   const sectors = [];
   if (_CLASSIC || !piece || piece.upgraded === false) return sectors;
   // 合体选项：存在多个组时显示
-  if (piece.groups && piece.groups.length > 1) {
+  if (canMergePiece(piece)) {
     sectors.push({ label: '合', value: 'merge' });
   }
   // 拆分选项：已合体（单组）且层数 > 1
-  if (piece.layer > 1 && (!piece.groups || piece.groups.length === 1)) {
+  if (canSplitPiece(piece)) {
     for (let k = 1; k < piece.layer; k++) {
       sectors.push({ label: `拆${k}`, value: k });
     }
@@ -3530,13 +3569,28 @@ const AI = (() => {
         for (let g = 0; g < 8; g++) groupKeys[r][c][g] = r32();
       }
     }
-    return { keys, groupKeys, side: r32() };
+    // 混合模式下，同一位置/类型/层数的棋子可能因觉醒状态不同而拥有完全不同走法。
+    const upgradeKeys = [];
+    for (let r = 0; r < ROWS; r++) {
+      upgradeKeys[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        upgradeKeys[r][c] = [];
+        for (let o = 0; o < 2; o++) {
+          upgradeKeys[r][c][o] = [];
+          for (let t = 0; t < 7; t++) upgradeKeys[r][c][o][t] = r32();
+        }
+      }
+    }
+    return { keys, groupKeys, upgradeKeys, side: r32() };
   })();
   const T_IDX = { K:0, R:1, C:2, H:3, B:4, A:5, P:6 };
   const O_IDX = { [RED]:0, [BLACK]:1 };
 
   function hashPiece(r, c, p) {
     let h = ZOBRIST.keys[r][c][O_IDX[p.owner]][T_IDX[p.type]][Math.min(p.layer, 8) - 1];
+    if (p.upgraded !== false) {
+      h ^= ZOBRIST.upgradeKeys[r][c][O_IDX[p.owner]][T_IDX[p.type]];
+    }
     // 未合体时 topGroup ≠ layer，需额外哈希以区分合体/未合体状态
     if (p.groups && p.groups.length > 1) {
       h ^= ZOBRIST.groupKeys[r][c][Math.min(p.groups[0], 8) - 1];
@@ -3737,12 +3791,13 @@ const AI = (() => {
               + (p.layer - 1) * KING_LAYER_VAL;
           if (mine) { mkR = r; mkC = c; mkL = p.layer; mkUp = p.upgraded !== false; }
           else      { okR = r; okC = c; okL = p.layer; okUp = p.upgraded !== false; }
-        } else {
+      } else {
+          const isUpgradedPiece = p.upgraded !== false;
           val = pieceVal(p) * layerMul(p.layer) + posBonus(p.type, c, normR)
-              + stackCombatBonus(p.type, p.layer);
+              + (isUpgradedPiece ? stackCombatBonus(p.type, p.layer) : 0);
           if (p.layer >= 2) val += (p.layer - 1) * 15; // 叠层战术加分
           // 未合体叠层：topGroup < layer，有战术损失，扣分催促AI尽快合体
-          if (p.groups && p.groups.length > 1) val -= (p.layer - p.groups[0]) * 20;
+          if (isUpgradedPiece && p.groups && p.groups.length > 1) val -= (p.layer - p.groups[0]) * 20;
           // 过河奖励
           if (p.type !== TYPE.PAWN && normR >= 5) val += 40;
           // 重型棋子在中路加分
@@ -3785,6 +3840,7 @@ const AI = (() => {
       for (let c = 0; c < COLS; c++) {
         const p = board[r][c];
         if (!p || (p.type !== TYPE.ADVISOR && p.type !== TYPE.BISHOP)) continue;
+        if (p.upgraded === false) continue;
         const tg = p.groups ? p.groups[0] : p.layer;
         if (tg < 2) continue;
         const mine = p.owner === owner, sign = mine ? 1 : -1;
@@ -4156,8 +4212,8 @@ const AI = (() => {
       for (let c = 0; c < COLS; c++) {
         const p = board[r][c];
         if (!p || p.owner !== owner) continue;
-        const topGroup = p.groups ? p.groups[0] : p.layer;
-        const isMerged = p.groups && p.groups.length === 1 && p.layer > 1;
+        const topGroup = getDefaultMoveLayers(p);
+        const isMerged = canSplitPiece(p);
         for (const m of generateMoves(board, c, r)) {
           // 默认：带走 topGroup 层
           moves.push({ srcCol:c, srcRow:r, ...m, layers: topGroup });
@@ -4169,7 +4225,7 @@ const AI = (() => {
           }
         }
         // 合体走法：groups 超过1个组时可合体
-        if (p.groups && p.groups.length > 1) {
+        if (canMergePiece(p)) {
           moves.push({ srcCol:c, srcRow:r, col:c, row:r, kind:'merge', layers: p.layer });
         }
       }
@@ -4185,7 +4241,7 @@ const AI = (() => {
       for (let c = 0; c < COLS; c++) {
         const p = board[r][c];
         if (!p || p.owner !== owner) continue;
-        const topGroup = p.groups ? p.groups[0] : p.layer;
+        const topGroup = getDefaultMoveLayers(p);
         for (const m of generateMoves(board, c, r)) {
           if (m.kind === 'eat' || m.kind === 'explode')
             moves.push({ srcCol:c, srcRow:r, ...m, layers: topGroup });
@@ -4517,24 +4573,84 @@ const AI = (() => {
   // ══════════════════════════════════════════════
   const ROOT_VARIETY = 10; // 根节点多样化容差（分）—— 对局游戏减小随机性
 
-  function classicImmediateTradePenalty(board, owner, move) {
-    if (!_CLASSIC || move.kind !== 'eat') return 0;
+  function exposureValue(piece) {
+    if (!piece) return 0;
+    return pieceVal(piece) * Math.max(1, Math.min(piece.layer || 1, 8));
+  }
+
+  function materialBalance(board, owner) {
+    let score = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        score += (p.owner === owner ? 1 : -1) * exposureValue(p);
+      }
+    }
+    return score;
+  }
+
+  function moveLandingSquare(move) {
+    if (move.kind === 'explode') return null;
+    if (move.kind === 'charge') return { col: move.col - move.dc, row: move.row - move.dr };
+    return { col: move.col, row: move.row };
+  }
+
+  function isTacticalReply(board, move) {
+    if (move.kind === 'eat' || move.kind === 'explode' || move.kind === 'charge') return true;
     const src = board[move.srcRow]?.[move.srcCol];
-    const tgt = board[move.row]?.[move.col];
-    if (!src || !tgt || tgt.type === TYPE.KING) return 0;
-    const srcVal = pieceVal(src);
-    const tgtVal = pieceVal(tgt);
-    const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
-    if (!searchMoveAllowedAfter(nb, owner, kc)) return 0;
-    const landed = nb[move.row]?.[move.col];
-    if (!landed || landed.owner !== owner || landed.type !== src.type) return 0;
+    return !!(src && !_CLASSIC && src.upgraded !== false
+      && (src.type === TYPE.ADVISOR || src.type === TYPE.BISHOP)
+      && move.kind !== 'stack');
+  }
+
+  function immediateTradePenalty(board, owner, move, boardAfter = null, kingCaptured = null) {
+    if (kingCaptured === enemy(owner)) return 0;
+    if (kingCaptured === owner) return 99999;
+    let nb = boardAfter;
+    let kc = kingCaptured;
+    if (!nb) {
+      const sim = applyMove(board, move.srcCol, move.srcRow, move);
+      nb = sim.board;
+      kc = sim.kingCaptured;
+      if (!searchMoveAllowedAfter(nb, owner, kc)) return 99999;
+      if (kc === enemy(owner)) return 0;
+    }
+
+    const landing = moveLandingSquare(move);
+    if (!landing || !inBoard(landing.col, landing.row)) return 0;
+    const landed = nb[landing.row]?.[landing.col];
+    if (!landed || landed.owner !== owner) return 0;
+
+    const beforeBalance = materialBalance(board, owner);
+    const afterBalance = materialBalance(nb, owner);
+    const immediateGain = Math.max(0, afterBalance - beforeBalance);
+    const landedValue = exposureValue(landed);
+    let worstLoss = 0;
+
     for (const reply of genAll(nb, enemy(owner))) {
-      if (reply.kind !== 'eat' || reply.col !== move.col || reply.row !== move.row) continue;
+      if (!isTacticalReply(nb, reply)) continue;
       const { board: rb, kingCaptured: rkc } = applyMove(nb, reply.srcCol, reply.srcRow, reply);
       if (!searchMoveAllowedAfter(rb, enemy(owner), rkc)) continue;
-      return Math.max(1200, srcVal - tgtVal + 1200);
+      if (rkc === owner) return 99999;
+      const after = rb[landing.row]?.[landing.col];
+      let loss = 0;
+      if (!after || after.owner !== owner || after.type !== landed.type) {
+        loss = landedValue;
+      } else if (after.layer < landed.layer) {
+        loss = (landed.layer - after.layer) * pieceVal(landed);
+      }
+      if (loss > worstLoss) worstLoss = loss;
     }
-    return 0;
+
+    const penalty = worstLoss - immediateGain * 0.9;
+    if (penalty <= 0) return 0;
+    return penalty + (_CLASSIC ? 1200 : 180);
+  }
+
+  function classicImmediateTradePenalty(board, owner, move, boardAfter = null, kingCaptured = null) {
+    if (!_CLASSIC) return 0;
+    return immediateTradePenalty(board, owner, move, boardAfter, kingCaptured);
   }
 
   function classicRootTradeUnsafe(board, owner, move) {
@@ -4626,7 +4742,7 @@ const AI = (() => {
             }
           }
           if (stopped) break;
-          if (_CLASSIC) v -= classicImmediateTradePenalty(board, owner, m);
+          v -= immediateTradePenalty(board, owner, m, nb, kc);
           depthScores.push({ m, v, exact });
           if (v > alpha) { alpha = v; dBest = m; }
         }
@@ -4695,7 +4811,16 @@ const AI = (() => {
       const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
       return searchMoveAllowedAfter(nb, owner, kc);
     });
-    return safe.length ? safe[Math.floor(Math.random() * safe.length)] : (moves[0] || null);
+    if (!safe.length) return moves[0] || null;
+    let bestMove = safe[0];
+    let bestScore = -Infinity;
+    for (const m of safe) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      const redScore = kc === RED ? -99980 : kc === BLACK ? 99980 : kc === 'draw' ? 0 : evaluate(nb, RED);
+      const score = (owner === RED ? redScore : -redScore) - immediateTradePenalty(board, owner, m, nb, kc);
+      if (score > bestScore) { bestScore = score; bestMove = m; }
+    }
+    return bestMove;
   }
 
   function classicTwoPlyFallback(board, owner, moves) {
@@ -4779,7 +4904,7 @@ const AI = (() => {
           }
         }
         if (stopped) break;
-        if (_CLASSIC) v -= classicImmediateTradePenalty(board, owner, m);
+        v -= immediateTradePenalty(board, owner, m, nb, kc);
         depthScores.push({ m, v, exact });
         if (v > alpha) { alpha = v; dBest = m; }
       }
@@ -4955,8 +5080,24 @@ const AI = (() => {
     }
   }
 
-  return { bestMove, bestMoveAsync, clearTT, evaluate, quickEval, displayEval, ponder, ponderLoop, abortPonder };
+  return {
+    bestMove, bestMoveAsync, clearTT, evaluate, quickEval, displayEval, ponder, ponderLoop, abortPonder,
+    _debugGenAll: genAll,
+    _debugHashBoard: hashBoard,
+  };
 })();
+
+if (_urlParams.get('debug') === '1') {
+  window.__kwDebug = {
+    getBoard: () => cloneBoard(game.board),
+    generateMoves: (col, row) => generateMoves(game.board, col, row),
+    genAll: (owner, board = game.board) => AI._debugGenAll(board, owner),
+    getPieceSectors: (piece) => getPieceSectors(piece),
+    applyMove: (board, srcCol, srcRow, move) => applyMove(board, srcCol, srcRow, move),
+    hashBoard: (board = game.board, turn = game.turn) => AI._debugHashBoard(board, turn),
+    bestMove: (owner = game.turn, ms = 80, board = game.board) => AI.bestMove(board, owner, ms, []),
+  };
+}
 
 // ─────────────────────────────────────────────
 //  AI 游戏集成

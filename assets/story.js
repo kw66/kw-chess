@@ -1765,6 +1765,10 @@ function getMatchConfig(scene) {
 }
 
 function postGameCommand(command, payload = {}) {
+  if (command === 'undo') {
+    const undoButton = document.querySelector('[data-game-command="undo"]');
+    if (undoButton?.disabled) return;
+  }
   const frame = document.querySelector('#story-game-frame');
   if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) return;
   frame.contentWindow.postMessage({ type: 'game-command', command, ...payload }, '*');
@@ -1910,6 +1914,7 @@ function handleGameMessage(event) {
 
 function resetMatchPanel() {
   requestAnimationFrame(() => {
+    setMatchUndoDisabled(false);
     setText('#story-player-pct', `${DEFAULT_MATCH_PROGRESS.playerPct}%`);
     setText('#story-turn-text', DEFAULT_MATCH_PROGRESS.turnText);
     setText('#story-round-text', DEFAULT_MATCH_PROGRESS.roundText);
@@ -1926,6 +1931,8 @@ function resetMatchPanel() {
 function updateMatchStatusPanel(data) {
   if (data.turnText) setText('#story-turn-text', data.turnText);
   if (data.roundText) setText('#story-round-text', data.roundText);
+  if (data.gameOver && data.playerWon) setMatchUndoDisabled(true);
+  else if (!data.gameOver) setMatchUndoDisabled(false);
 }
 
 function updateMatchProgressPanel(data) {
@@ -1946,8 +1953,16 @@ function setText(selector, value) {
   if (el) el.textContent = value;
 }
 
+function setMatchUndoDisabled(disabled) {
+  const undoButton = document.querySelector('[data-game-command="undo"]');
+  if (!undoButton) return;
+  undoButton.disabled = Boolean(disabled);
+  undoButton.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+}
+
 function showMatchFinishedPanel(scene, goalReached) {
   const result = state.matchResults[scene.id];
+  setMatchUndoDisabled(goalReached);
   const hint = document.querySelector('#story-live-hint');
   if (hint) {
     if (scene.day === 1) {
@@ -2005,6 +2020,7 @@ function bindEvents() {
     app.addEventListener('click', (event) => {
       const button = event.target.closest('[data-action], [data-game-command]');
       if (!button || !app.contains(button)) return;
+      if (button.disabled) return;
       if (button.dataset.gameCommand) {
         postGameCommand(button.dataset.gameCommand);
         return;
@@ -2089,6 +2105,7 @@ function bindLegacyEvents() {
   });
   app.querySelectorAll('[data-game-command]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (button.disabled) return;
       postGameCommand(button.dataset.gameCommand);
     });
   });
