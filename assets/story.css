@@ -1823,12 +1823,24 @@ blockquote {
 
 .story-side-title {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   align-items: center;
   gap: 8px;
   color: #2d1d12;
   font-size: 13px;
   font-weight: 950;
+}
+
+.story-turn-meta {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .story-side-title strong {
@@ -1838,14 +1850,14 @@ blockquote {
 }
 
 .story-side-title small {
-  justify-self: end;
   color: #806044;
   font-size: 12px;
   font-weight: 850;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .story-side-title b {
-  justify-self: center;
   padding: 4px 7px;
   border: 1px solid rgba(159, 32, 25, 0.14);
   border-radius: 999px;
@@ -2088,11 +2100,15 @@ blockquote {
   }
 
   .story-side-title {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .story-side-title strong {
     font-size: 18px;
+  }
+
+  .story-turn-meta {
+    gap: 5px;
   }
 
   .story-side-title b,

@@ -3188,13 +3188,15 @@ function advantageText(score) {
 }
 
 function updateScoreDisplay(push, nextMover) {
-  // 显示用评估必须固定为红方视角，不把"当前谁走"的战术搜索先手权直接换算成胜率。
-  // 初始局面没有 nextMover 时仍用静态评估；走棋后用显示专用浅搜索，避免一手威胁被当成稳定优势。
-  const rawScore = nextMover ? AI.displayEval(game.board, nextMover) : AI.evaluate(game.board, RED);
+  // 胜率条固定展示红方静态评估，避免把“下一手短期战术变化”直接显示成长期优势。
+  // 这样走完一步后，数值会更像局面强弱，而不是即时搜索噪声。
+  const rawScore = AI.evaluate(game.board, RED);
   const wr = scoreToWR(rawScore);
+  const lastWr = wrHistory.length ? wrHistory[wrHistory.length - 1] : wr;
+  const smoothWr = push === false ? wr : (lastWr * 0.7 + wr * 0.3);
   if (push !== false) wrHistory.push(wr);
 
-  const redPct = Math.round(wr * 100);
+  const redPct = Math.round(smoothWr * 100);
   const blkPct = 100 - redPct;
   const redEl = document.getElementById('red-wr-pct');
   const blkEl = document.getElementById('blk-wr-pct');

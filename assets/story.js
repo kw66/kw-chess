@@ -1643,8 +1643,10 @@ function renderEmbeddedMatch(scene) {
         <section class="story-side-card story-hint-card" aria-label="走法提示">
           <div class="story-side-title">
             <span>走法提示</span>
-            <b id="story-turn-text">${DEFAULT_MATCH_PROGRESS.turnText}</b>
-            <small id="story-round-text">${DEFAULT_MATCH_PROGRESS.roundText}</small>
+            <span class="story-turn-meta">
+              <b id="story-turn-text">${DEFAULT_MATCH_PROGRESS.turnText}</b>
+              <small id="story-round-text">${DEFAULT_MATCH_PROGRESS.roundText}</small>
+            </span>
           </div>
           <div class="story-live-hint" id="story-live-hint" data-default-hint="${escapeAttr(getDefaultLiveHint(scene))}">${DEFAULT_MATCH_PROGRESS.hint}</div>
         </section>
