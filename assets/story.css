@@ -998,7 +998,7 @@ blockquote {
   .track-scroll {
     position: relative;
     display: flex;
-    --track-item-width: clamp(50px, 14vw, 60px);
+    --track-item-width: clamp(84px, 22vw, 94px);
     --track-gap: clamp(7px, 2.2vw, 9px);
     gap: var(--track-gap);
     overflow-x: auto;
@@ -1058,14 +1058,19 @@ blockquote {
 
   .track-label {
     width: 100%;
+    min-height: 25px;
     overflow: hidden;
     color: #68482f;
     font-size: 11px;
     font-weight: 850;
     line-height: 1.15;
     text-align: center;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    white-space: normal;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .track-item.current .track-dot {
@@ -1122,6 +1127,13 @@ blockquote {
     align-self: stretch;
     height: 100%;
     padding: 8px;
+    --story-game-action-height: 40px;
+    --story-game-shell-gap: 7px;
+    --story-game-side-budget: 154px;
+    --story-game-frame-width: min(
+      100%,
+      calc((100dvh - 372px - var(--story-game-action-height) - var(--story-game-shell-gap)) * 600 / 664)
+    );
   }
 
   .story-panel.is-playing .story-content {
@@ -1133,21 +1145,26 @@ blockquote {
 
   .story-game-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, auto) auto;
+    grid-template-rows: auto minmax(0, auto);
     align-content: start;
-    gap: 7px;
+    gap: var(--story-game-shell-gap);
     min-height: 0;
     height: 100%;
   }
 
   .story-game-board {
+    display: grid;
+    grid-template-rows: auto auto;
+    align-content: start;
+    justify-items: center;
+    gap: 7px;
     overflow: visible;
   }
 
   .story-game-frame {
     min-height: 0;
-    width: min(100%, calc((100dvh - 358px) * 600 / 664));
-    max-height: calc(100dvh - 358px);
+    width: var(--story-game-frame-width);
+    max-height: calc(100dvh - 372px - var(--story-game-action-height) - var(--story-game-shell-gap));
     border-radius: 8px;
   }
 
@@ -1159,7 +1176,16 @@ blockquote {
 
   .story-game-actions {
     gap: 7px;
-    width: min(100%, calc((100dvh - 358px) * 600 / 664));
+    width: var(--story-game-frame-width);
+    min-height: var(--story-game-action-height);
+  }
+
+  .story-game-actions .nav-btn {
+    min-height: var(--story-game-action-height);
+    padding: 7px 6px 8px;
+    font-size: 15px;
+    line-height: 1.05;
+    white-space: nowrap;
   }
 
   .desktop-heading {

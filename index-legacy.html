@@ -1085,17 +1085,21 @@ function applyGroupDamage(groups, damage) {
 }
 
 function canSplitPiece(piece) {
-  return !_CLASSIC && !!piece && piece.upgraded !== false
+  return isAwakenedPiece(piece)
     && piece.type !== TYPE.KING
     && piece.layer > 1
     && (!piece.groups || piece.groups.length === 1);
 }
 
 function canMergePiece(piece) {
-  return !_CLASSIC && !!piece && piece.upgraded !== false
+  return isAwakenedPiece(piece)
     && piece.type !== TYPE.KING
     && !!piece.groups
     && piece.groups.length > 1;
+}
+
+function isAwakenedPiece(piece) {
+  return !_CLASSIC && !!piece && piece.upgraded !== false;
 }
 
 function getDefaultMoveLayers(piece) {
@@ -1534,6 +1538,20 @@ function findKing(board, owner) {
   return null;
 }
 
+function unawakenedKingFacingThreat(board, owner) {
+  const king = findKing(board, owner);
+  const oppKing = findKing(board, enemy(owner));
+  if (!king || !oppKing || king.col !== oppKing.col) return false;
+  const ownPiece = board[king.row][king.col];
+  if (!ownPiece || ownPiece.upgraded !== false) return false;
+  const minR = Math.min(king.row, oppKing.row);
+  const maxR = Math.max(king.row, oppKing.row);
+  for (let r = minR + 1; r < maxR; r++) {
+    if (board[r][king.col]) return false;
+  }
+  return true;
+}
+
 // ─────────────────────────────────────────────
 //  全面评估某棋盘下 owner 方王的危险等级
 //  遍历所有敌方回应（直接吃子 + 士光波 + 相地震波 + 车冲撞 + 兵自爆/连锁），
@@ -1542,6 +1560,7 @@ function findKing(board, owner) {
 function assessKingDanger(board, owner) {
   const king = findKing(board, owner);
   if (!king) return 'fatal'; // 王已不存在
+  if (unawakenedKingFacingThreat(board, owner)) return 'fatal';
 
   const opp = enemy(owner);
   let danger = 'safe';
@@ -1615,6 +1634,13 @@ function hasSpecialFatalKingThreat(board, owner) {
     }
   }
   return false;
+}
+
+function wouldLeaveOwnerUnsafe(boardAfter, owner, kingCaptured = null) {
+  if (kingCaptured === owner) return true;
+  if (kingCaptured === enemy(owner) || kingCaptured === 'draw') return false;
+  if (_CLASSIC) return classicKingInCheck(boardAfter, owner);
+  return assessKingDanger(boardAfter, owner) === 'fatal';
 }
 
 // ─────────────────────────────────────────────
@@ -1951,8 +1977,7 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
 
     // 己方王被消灭，或传统模式走完仍被将军/将帅对脸：
     // 不直接禁走，标成红点；玩家确认落子后按认负结算。
-    if (kingCaptured === game.turn) return { ...m, danger: 'fatal', preview, selfFatal: true };
-    if (_CLASSIC && classicKingInCheck(nb, game.turn)) return { ...m, danger: 'fatal', preview, selfFatal: true };
+    if (wouldLeaveOwnerUnsafe(nb, game.turn, kingCaptured)) return { ...m, danger: 'fatal', preview, selfFatal: true };
     // 和棋或敌方王被消灭 → 显示为安全（允许选择）
     if (kingCaptured) return { ...m, danger: 'safe', preview };
 
@@ -2134,7 +2159,7 @@ function hasAnyLegalMove(board, owner) {
       const topGroup = getDefaultMoveLayers(p);
       for (const m of generateMoves(board, c, r)) {
         const { board: nb, kingCaptured: kc } = applyMove(board, c, r, { srcCol: c, srcRow: r, ...m, layers: topGroup });
-        if (kc === owner) continue; // 自杀走法
+        if (wouldLeaveOwnerUnsafe(nb, owner, kc)) continue;
         return true;
       }
     }
@@ -3188,12 +3213,12 @@ function advantageText(score) {
 }
 
 function updateScoreDisplay(push, nextMover) {
-  // 胜率条固定展示红方静态评估，避免把“下一手短期战术变化”直接显示成长期优势。
-  // 这样走完一步后，数值会更像局面强弱，而不是即时搜索噪声。
-  const rawScore = AI.evaluate(game.board, RED);
+  // 胜率条固定为红方视角，但必须看下一方最佳走法和对手最佳应对。
+  // 不能只看静态分，否则会漏掉一手战术；也不能只看下一方一步，否则会把单方先手权误当长期优势。
+  const rawScore = AI.displayEval(game.board, nextMover || game.turn);
   const wr = scoreToWR(rawScore);
   const lastWr = wrHistory.length ? wrHistory[wrHistory.length - 1] : wr;
-  const smoothWr = push === false ? wr : (lastWr * 0.7 + wr * 0.3);
+  const smoothWr = push === false ? (lastWr * 0.82 + wr * 0.18) : (lastWr * 0.68 + wr * 0.32);
   if (push !== false) wrHistory.push(wr);
 
   const redPct = Math.round(smoothWr * 100);
@@ -3606,9 +3631,20 @@ const AI = (() => {
     return h >>> 0;
   }
 
+  function createsKnownRepetition(boardAfter, nextTurn, pathLen = MAX_PLY) {
+    const hash = hashBoard(boardAfter, nextTurn);
+    if (gameHashes.has(hash)) return true;
+    const limit = Math.max(0, Math.min(pathLen, searchPath.length));
+    for (let i = 0; i < limit; i++) {
+      if (searchPath[i] === hash) return true;
+    }
+    return false;
+  }
+
   // ── 将军检测（AI内部，扫描直接吃王走法 + 传统模式将帅对脸）──
   function isInCheck(board, owner) {
     if (_CLASSIC) return classicKingInCheck(board, owner);
+    if (unawakenedKingFacingThreat(board, owner)) return true;
     // 科王/混合规则下，仕/相范围伤害、兵自爆、车冲撞也可能形成致命威胁。
     // 搜索剪枝必须把这些局面视作被将军，否则会漏掉唯一防守。
     if (hasDirectKingAttack(board, owner)) return true;
@@ -3759,6 +3795,34 @@ const AI = (() => {
     return bonus;
   }
 
+  function classicDevelopmentBonus(type, col, row, owner) {
+    const normR = owner === RED ? (9 - row) : row;
+    const startRow = owner === RED ? 9 : 0;
+    let bonus = 0;
+    if (type === TYPE.KING) {
+      if (row !== startRow || col !== 4) bonus -= 180;
+      return bonus;
+    }
+    if (type === TYPE.HORSE) {
+      if (normR >= 2) bonus += 34;
+      if (col >= 2 && col <= 6) bonus += 10;
+      if ((owner === RED && row === 9) || (owner === BLACK && row === 0)) bonus -= 12;
+    } else if (type === TYPE.CANNON) {
+      if (normR >= 2 && normR <= 5) bonus += 18;
+      if (col === 4) bonus += 18;
+      if (normR >= 6) bonus -= 22;
+    } else if (type === TYPE.ROOK) {
+      if (normR >= 1) bonus += 14;
+      if (col >= 3 && col <= 5) bonus += 8;
+    } else if (type === TYPE.PAWN) {
+      if (normR >= 1) bonus += 8;
+      if (normR >= 5) bonus += 18;
+    } else if (type === TYPE.ADVISOR || type === TYPE.BISHOP) {
+      if (inPalace(col, row, owner)) bonus += 8;
+    }
+    return bonus;
+  }
+
   function evaluate(board, owner) {
     const CONTEMPT = 50;
     let score = CONTEMPT;
@@ -3800,10 +3864,14 @@ const AI = (() => {
           if (p.layer >= 2) val += (p.layer - 1) * 15; // 叠层战术加分
           // 未合体叠层：topGroup < layer，有战术损失，扣分催促AI尽快合体
           if (isUpgradedPiece && p.groups && p.groups.length > 1) val -= (p.layer - p.groups[0]) * 20;
-          // 过河奖励
-          if (p.type !== TYPE.PAWN && normR >= 5) val += 40;
-          // 重型棋子在中路加分
-          if ((p.type === TYPE.ROOK || p.type === TYPE.CANNON) && c >= 3 && c <= 5) val += 15;
+          if (!isUpgradedPiece) {
+            val += classicDevelopmentBonus(p.type, c, r, p.owner);
+          } else {
+            // 过河奖励
+            if (p.type !== TYPE.PAWN && normR >= 5) val += 40;
+            // 重型棋子在中路加分
+            if ((p.type === TYPE.ROOK || p.type === TYPE.CANNON) && c >= 3 && c <= 5) val += 15;
+          }
         }
         score += sign * val;
         const pv = pieceVal(p);
@@ -3833,6 +3901,25 @@ const AI = (() => {
     const stackRaceW = 0.4 + phase * 1.1;   // 残局0.4 → 开局1.5
     const clusterW   = 0.6 - phase * 0.2;   // 残局0.6 → 开局0.4
     const kingGrowW  = 1.5 - phase * 0.9;   // 残局1.5 → 开局0.6
+    if (_CLASSIC && phase > 0.55) {
+      const myHomeRow = owner === RED ? 9 : 0;
+      const oppHomeRow = opp === RED ? 9 : 0;
+      const earlyKingMovePenalty = 380 * phase;
+      if (mkR >= 0 && (mkR !== myHomeRow || mkC !== 4)) score -= earlyKingMovePenalty;
+      if (okR >= 0 && (okR !== oppHomeRow || okC !== 4)) score += earlyKingMovePenalty;
+    }
+    if (_MIXED && phase > 0.55) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const p = board[r][c];
+          if (!p || p.type !== TYPE.KING || p.upgraded !== false) continue;
+          const homeRow = p.owner === RED ? 9 : 0;
+          if (r === homeRow && c === 4) continue;
+          const penalty = 380 * phase;
+          score += (p.owner === owner ? -penalty : penalty);
+        }
+      }
+    }
     score += myAttackers * (isEndgame ? 40 : 25);
     if (myMaterial > oppMaterial) score += (myMaterial - oppMaterial) * 0.1;
 
@@ -3990,10 +4077,8 @@ const AI = (() => {
     if (okR >= 0) score += cannonLineThreat(board, okC, okR, owner);
 
     // 王吃子成长机会（仅觉醒王：传统帅被动防守，不应激励其主动吃子）
-    if (!_CLASSIC) {
-      if (mkR >= 0 && mkUp) score += kingEatTargets(board, mkC, mkR, mkL, owner);
-      if (okR >= 0 && okUp) score -= kingEatTargets(board, okC, okR, okL, opp);
-    }
+    if (mkR >= 0 && mkUp) score += kingEatTargets(board, mkC, mkR, mkL, owner);
+    if (okR >= 0 && okUp) score -= kingEatTargets(board, okC, okR, okL, opp);
 
     // 残局王距离
     if (isEndgame && mkR >= 0 && okR >= 0) {
@@ -4002,8 +4087,8 @@ const AI = (() => {
       else score -= (14-kingDist) * 5;
     }
     // 王成长加成（残局更关键）
-    if (okL >= 2) score -= okL * 60 * kingGrowW;
-    if (mkL >= 2) score += mkL * 60 * kingGrowW;
+    if (okUp && okL >= 2) score -= okL * 60 * kingGrowW;
+    if (mkUp && mkL >= 2) score += mkL * 60 * kingGrowW;
 
     // ── 王安全度（开局/中局权重高，残局衰减）──
     for (const [kr, kc, kSide, sgn] of [[mkR, mkC, owner, 1], [okR, okC, opp, -1]]) {
@@ -4048,7 +4133,7 @@ const AI = (() => {
           const d = Math.max(Math.abs(c-mkC), Math.abs(r-mkR));
           score -= 25 / d;
           // 合体棋子近王 = 高度危险（层数越高威胁越大）
-          if (p.layer >= 2) score -= p.layer * 22 / d;
+          if (p.upgraded !== false && p.layer >= 2) score -= p.layer * 22 / d;
           else if (p.type === TYPE.PAWN) score -= p.layer * 18 / d;
         }
     }
@@ -4059,7 +4144,7 @@ const AI = (() => {
           const p = board[r][c]; if (!p || p.owner !== owner) continue;
           const d = Math.max(Math.abs(c-okC), Math.abs(r-okR));
           score += 25 / d;
-          if (p.layer >= 2) score += p.layer * 22 / d;
+          if (p.upgraded !== false && p.layer >= 2) score += p.layer * 22 / d;
           else if (p.type === TYPE.PAWN) score += p.layer * 18 / d;
         }
     }
@@ -4202,10 +4287,7 @@ const AI = (() => {
   //  走法生成
   // ══════════════════════════════════════════════
   function searchMoveAllowedAfter(boardAfter, owner, kingCaptured) {
-    if (kingCaptured === owner) return false;
-    if (!_CLASSIC) return true;
-    if (kingCaptured === enemy(owner)) return true;
-    return !classicKingInCheck(boardAfter, owner);
+    return !wouldLeaveOwnerUnsafe(boardAfter, owner, kingCaptured);
   }
 
   function genAll(board, owner) {
@@ -4432,10 +4514,12 @@ const AI = (() => {
 
     const hash = hashBoard(board, owner);
 
-    // ── 重复局面检测：出现过的局面视为和棋（迫使优势方走出进展）──
+    // ── 重复局面检测：不要把重复当作中性 0 分，否则劣势方会主动循环长将/长捉。
+    // 这里的局面是上一手造成的，所以给“当前待走方”大分；
+    // 上一层取负后，造成重复的一方会得到强烈差评。
     if (ply > 0) {
-      if (gameHashes.has(hash)) return 0;
-      for (let i = 0; i < ply; i++) if (searchPath[i] === hash) return 0;
+      if (gameHashes.has(hash)) return 90000 - ply;
+      for (let i = 0; i < ply; i++) if (searchPath[i] === hash) return 90000 - ply;
     }
     searchPath[ply] = hash;
 
@@ -4650,15 +4734,6 @@ const AI = (() => {
     return penalty + (_CLASSIC ? 1200 : 180);
   }
 
-  function classicImmediateTradePenalty(board, owner, move, boardAfter = null, kingCaptured = null) {
-    if (!_CLASSIC) return 0;
-    return immediateTradePenalty(board, owner, move, boardAfter, kingCaptured);
-  }
-
-  function classicRootTradeUnsafe(board, owner, move) {
-    return classicImmediateTradePenalty(board, owner, move) > 0;
-  }
-
   function searchMoveLimit(depth, ply) {
     if (_CLASSIC) return Infinity;
     if (ply === 0) {
@@ -4722,9 +4797,9 @@ const AI = (() => {
 
         for (let ri = 0; ri < searchMoves.length; ri++) {
           const m = searchMoves[ri];
-          if (classicRootTradeUnsafe(board, owner, m)) { depthScores.push({ m, v: -Infinity }); continue; }
           const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
           if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
+          if (createsKnownRepetition(nb, enemy(owner), 1)) { depthScores.push({ m, v: -90000, exact: true }); continue; }
           if (kc === enemy(owner)) return m;
           if (kc === 'draw') {
             depthScores.push({ m, v: 0, exact: true });
@@ -4789,11 +4864,17 @@ const AI = (() => {
     }
 
     if (!best && moves.length) {
-      // 过滤掉纯自杀走法（'draw'和棋可以接受）
-      const safe = moves.filter(m => {
+      // 过滤掉纯自杀和直接回到历史局面的走法（'draw'和棋可以接受）
+      let safe = moves.filter(m => {
         const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
-        return searchMoveAllowedAfter(nb, owner, kc);
+        return searchMoveAllowedAfter(nb, owner, kc) && !createsKnownRepetition(nb, enemy(owner), 1);
       });
+      if (!safe.length) {
+        safe = moves.filter(m => {
+          const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+          return searchMoveAllowedAfter(nb, owner, kc);
+        });
+      }
       best = safe.length ? safe[Math.floor(Math.random() * safe.length)] : moves[0];
     }
     return best;
@@ -4811,9 +4892,15 @@ const AI = (() => {
   function fallbackRootMove(board, owner, moves) {
     const safe = moves.filter(m => {
       const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
-      return searchMoveAllowedAfter(nb, owner, kc);
+      return searchMoveAllowedAfter(nb, owner, kc) && !createsKnownRepetition(nb, enemy(owner), 1);
     });
-    if (!safe.length) return moves[0] || null;
+    if (!safe.length) {
+      const legal = moves.filter(m => {
+        const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+        return searchMoveAllowedAfter(nb, owner, kc);
+      });
+      return legal[0] || moves[0] || null;
+    }
     let bestMove = safe[0];
     let bestScore = -Infinity;
     for (const m of safe) {
@@ -4831,6 +4918,7 @@ const AI = (() => {
     for (const m of moves) {
       const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
       if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      if (createsKnownRepetition(nb, enemy(owner), 1)) continue;
       let ownerScore;
       if (kc === enemy(owner)) {
         ownerScore = 99999;
@@ -4854,7 +4942,7 @@ const AI = (() => {
         if (!replied) worstScore = owner === RED ? evaluate(nb, RED) : -evaluate(nb, RED);
         ownerScore = worstScore;
       }
-      ownerScore -= classicImmediateTradePenalty(board, owner, m);
+      ownerScore -= immediateTradePenalty(board, owner, m, nb, kc);
       if (ownerScore > bestScore) {
         bestScore = ownerScore;
         bestMove = m;
@@ -4884,9 +4972,9 @@ const AI = (() => {
       for (let ri = 0; ri < searchMoves.length; ri++) {
         if (Date.now() > dl || ponderAbort) { stopped = true; break; }
         const m = searchMoves[ri];
-        if (classicRootTradeUnsafe(board, owner, m)) { depthScores.push({ m, v: -Infinity }); continue; }
         const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
         if (!searchMoveAllowedAfter(nb, owner, kc)) { depthScores.push({ m, v: -Infinity }); continue; }
+        if (createsKnownRepetition(nb, enemy(owner), 1)) { depthScores.push({ m, v: -90000, exact: true }); continue; }
         if (kc === enemy(owner)) return { completed: true, best: m, score: 99999 + depth, scores: [{ m, v: 99999 + depth, exact: true }], mate: true };
         if (kc === 'draw') {
           depthScores.push({ m, v: 0, exact: true });
@@ -4997,7 +5085,41 @@ const AI = (() => {
     return nextMover === RED ? raw : -raw;
   }
 
-  // 显示用浅搜索：从下一方开始搜索双方最优，而不是只给下一方免费走一步。
+  function redScoreAfterMove(board, owner, move) {
+    const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+    if (!searchMoveAllowedAfter(nb, owner, kc)) return null;
+    if (kc === RED) return { board: nb, score: -99980, terminal: true };
+    if (kc === BLACK) return { board: nb, score: 99980, terminal: true };
+    if (kc === 'draw') return { board: nb, score: 0, terminal: true };
+    return { board: nb, score: evaluate(nb, RED), terminal: false };
+  }
+
+  function bestReplyAdjustedRedScore(board, owner, move) {
+    const first = redScoreAfterMove(board, owner, move);
+    if (!first) return null;
+    if (first.terminal) return first.score;
+
+    const replyOwner = enemy(owner);
+    const replies = genAll(first.board, replyOwner);
+    let hasReply = false;
+    let bestReplyScoreForReplyOwner = -Infinity;
+    let replyRedScore = first.score;
+
+    for (const reply of replies) {
+      const next = redScoreAfterMove(first.board, replyOwner, reply);
+      if (!next) continue;
+      hasReply = true;
+      const scoreForReplyOwner = replyOwner === RED ? next.score : -next.score;
+      if (scoreForReplyOwner > bestReplyScoreForReplyOwner) {
+        bestReplyScoreForReplyOwner = scoreForReplyOwner;
+        replyRedScore = next.score;
+      }
+    }
+
+    return hasReply ? replyRedScore : first.score;
+  }
+
+  // 显示用浅搜索：下一方先选最优走法，再按对手最优应对后的局面估值。
   // 返回值始终为红方视角，供胜率条显示。
   function displayEval(board, nextMover) {
     const owner = nextMover || RED;
@@ -5005,23 +5127,18 @@ const AI = (() => {
     const moves = genAll(board, owner);
     if (!moves.length) return baseRedScore;
     let bestOwnerScore = -Infinity;
-    let bestRedScore = baseRedScore;
+    let bestAfterReplyRedScore = baseRedScore;
     for (const move of moves) {
-      const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
-      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
-      let redScore;
-      if (kc === RED) redScore = -99980;
-      else if (kc === BLACK) redScore = 99980;
-      else if (kc === 'draw') redScore = 0;
-      else redScore = evaluate(nb, RED);
+      const redScore = bestReplyAdjustedRedScore(board, owner, move);
+      if (redScore === null) continue;
       const ownerScore = owner === RED ? redScore : -redScore;
       if (ownerScore > bestOwnerScore) {
         bestOwnerScore = ownerScore;
-        bestRedScore = redScore;
+        bestAfterReplyRedScore = redScore;
       }
     }
     if (bestOwnerScore === -Infinity) return baseRedScore;
-    const replyDelta = bestRedScore - baseRedScore;
+    const replyDelta = bestAfterReplyRedScore - baseRedScore;
     const maxDelta = _CLASSIC ? 180 : 260;
     const weight = _CLASSIC ? 0.45 : 0.5;
     return baseRedScore + clampNumber(replyDelta, -maxDelta, maxDelta) * weight;
@@ -5092,11 +5209,15 @@ const AI = (() => {
 if (_urlParams.get('debug') === '1') {
   window.__kwDebug = {
     getBoard: () => cloneBoard(game.board),
+    turn: () => game.turn,
     generateMoves: (col, row) => generateMoves(game.board, col, row),
     genAll: (owner, board = game.board) => AI._debugGenAll(board, owner),
     getPieceSectors: (piece) => getPieceSectors(piece),
     applyMove: (board, srcCol, srcRow, move) => applyMove(board, srcCol, srcRow, move),
     hashBoard: (board = game.board, turn = game.turn) => AI._debugHashBoard(board, turn),
+    evaluate: (owner = RED, board = game.board) => AI.evaluate(board, owner),
+    displayEval: (nextMover = game.turn, board = game.board) => AI.displayEval(board, nextMover),
+    scoreToWR,
     bestMove: (owner = game.turn, ms = 80, board = game.board) => AI.bestMove(board, owner, ms, []),
   };
 }

@@ -1748,7 +1748,7 @@ function getMatchConfig(scene) {
   if (scene.day === 9) {
     return {
       levelId: 109,
-      mode: 'mixed',
+      mode: 'kw',
       aiTime: 5000,
       aiStrength: 'story',
       ...buildSideMatchConfig(scene.day, ALL_PIECE_KEYS, ALL_PIECE_KEYS),
