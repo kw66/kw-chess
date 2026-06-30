@@ -1811,6 +1811,7 @@ const game = {
   gameOver: false,
   winner: null,
   isDraw: false,
+  endMessage: '',
   kingDanger: 'safe',  // 'safe' | 'hurt' | 'fatal'
   hoveredMoveIdx: null, // pickTarget阶段悬停的走法下标
   lastMove: null,       // {fromCol,fromRow,toCol,toRow} 上一步标记
@@ -2191,6 +2192,28 @@ function hasAnyLegalMove(board, owner) {
   return false;
 }
 
+function removeKingFromBoard(owner) {
+  const king = findKing(game.board, owner);
+  if (!king) return false;
+  game.board[king.row][king.col] = null;
+  if (!game.captured.some(c => c.owner === owner && c.type === TYPE.KING)) {
+    game.captured.push({ owner, type: TYPE.KING });
+  }
+  return true;
+}
+
+function finishByKingTaken(loser, reason) {
+  const winner = enemy(loser);
+  removeKingFromBoard(loser);
+  game.gameOver = true;
+  game.isDraw = false;
+  game.winner = winner;
+  const loserName = loser === RED ? '红' : '黑';
+  const winnerName = winner === RED ? '红' : '黑';
+  game.endMessage = `🎉 对局结束：${winnerName}方吃掉${loserName}方王，已经获胜。`;
+  addLog(`【${reason}，${loserName}方王被吃掉，${winnerName}方获胜】`, true);
+}
+
 async function executeMove(move) {
   // 中断 Pondering（人走棋时 AI 可能还在后台思考）
   if (aiState.ponderTimer) { clearTimeout(aiState.ponderTimer); aiState.ponderTimer = null; }
@@ -2416,19 +2439,18 @@ async function executeMove(move) {
     game.gameOver = true;
     game.isDraw   = (kingCaptured === 'draw');
     game.winner   = game.isDraw ? null : enemy(kingCaptured);
+    game.endMessage = game.isDraw
+      ? '🤝 对局结束：双方王同时被吃掉，和棋。'
+      : `🎉 对局结束：${game.winner === RED ? '红' : '黑'}方吃掉${kingCaptured === RED ? '红' : '黑'}方王，已经获胜。`;
     addLog(game.isDraw ? '【双王同归于尽！和棋】'
-           : `【${game.winner === RED ? '红' : '黑'}方获胜！】`, true);
+           : `【${kingCaptured === RED ? '红' : '黑'}方王被吃掉，${game.winner === RED ? '红' : '黑'}方获胜！】`, true);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
     return;
   }
 
   if (move.selfFatal) {
-    const loser = piece.owner;
-    game.gameOver = true;
-    game.isDraw   = false;
-    game.winner   = enemy(loser);
-    addLog(`【${loser === RED ? '红' : '黑'}方走入致命威胁，认负】`, true);
+    finishByKingTaken(piece.owner, `${piece.owner === RED ? '红' : '黑'}方走入致命威胁`);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
     return;
@@ -2438,10 +2460,7 @@ async function executeMove(move) {
 
   // 停局检测：若下一方无任何合法走法，判该方负
   if (!hasAnyLegalMove(game.board, game.turn)) {
-    game.gameOver = true;
-    game.isDraw   = false;
-    game.winner   = enemy(game.turn);
-    addLog(`【${game.turn === RED ? '红' : '黑'}方无路可走，判负】`, true);
+    finishByKingTaken(game.turn, `${game.turn === RED ? '红' : '黑'}方无路可走`);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
     return;
@@ -2484,6 +2503,7 @@ function undoMove() {
   game.gameOver = false;
   game.winner = null;
   game.isDraw = false;
+  game.endMessage = '';
   game.hoveredMoveIdx = null;
   game.kingDanger = assessKingDanger(game.board, game.turn);
   clearPieceHint();
@@ -2536,6 +2556,7 @@ function restartGame() {
   game.gameOver = false;
   game.winner = null;
   game.isDraw = false;
+  game.endMessage = '';
   game.kingDanger = 'safe';
   game.captured = [];
   game.lastMove = null;
@@ -3126,13 +3147,14 @@ function updateUI() {
   const ti = document.getElementById('turn-indicator');
   const mg = document.getElementById('message');
   if (game.gameOver) {
-    ti.textContent = '游戏结束';
     if (game.isDraw) {
+      ti.textContent = '和棋结束';
       ti.className = 'draw';
-      mg.textContent = '🤝 和棋！';
+      mg.textContent = game.endMessage || '🤝 对局结束：双方和棋。';
     } else {
+      ti.textContent = `${game.winner === RED ? '红' : '黑'}方获胜`;
       ti.className = game.winner === RED ? 'red' : 'black';
-      mg.textContent = `🎉 ${game.winner === RED ? '红' : '黑'}方获胜！`;
+      mg.textContent = game.endMessage || `🎉 对局结束：${game.winner === RED ? '红' : '黑'}方吃掉对方王，已经获胜。`;
     }
     postGameStatus();
     return;
@@ -3242,7 +3264,8 @@ function updateScoreDisplay(push, nextMover) {
   const rawScore = AI.displayEval(game.board, nextMover || game.turn);
   const wr = scoreToWR(rawScore);
   const lastWr = wrHistory.length ? wrHistory[wrHistory.length - 1] : wr;
-  const smoothWr = push === false ? (lastWr * 0.82 + wr * 0.18) : (lastWr * 0.68 + wr * 0.32);
+  const terminalLike = Math.abs(rawScore) >= 90000;
+  const smoothWr = terminalLike ? wr : (push === false ? (lastWr * 0.82 + wr * 0.18) : (lastWr * 0.68 + wr * 0.32));
   if (push !== false) wrHistory.push(wr);
 
   const redPct = Math.round(smoothWr * 100);
@@ -5118,6 +5141,24 @@ const AI = (() => {
     return { board: nb, score: evaluate(nb, RED), terminal: false };
   }
 
+  function terminalRedScore(board, owner) {
+    if (!findKing(board, RED) && !findKing(board, BLACK)) return 0;
+    if (!findKing(board, RED)) return -99980;
+    if (!findKing(board, BLACK)) return 99980;
+    const moves = genAll(board, owner);
+    let hasSafe = false;
+    for (const move of moves) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      hasSafe = true;
+      if (kc === RED) return -99980;
+      if (kc === BLACK) return 99980;
+      if (kc === 'draw') return 0;
+    }
+    if (!hasSafe) return owner === RED ? -95000 : 95000;
+    return null;
+  }
+
   function bestReplyAdjustedRedScore(board, owner, move) {
     const first = redScoreAfterMove(board, owner, move);
     if (!first) return null;
@@ -5140,6 +5181,7 @@ const AI = (() => {
       }
     }
 
+    if (!hasReply) return replyOwner === RED ? -95000 : 95000;
     return hasReply ? replyRedScore : first.score;
   }
 
@@ -5147,6 +5189,8 @@ const AI = (() => {
   // 返回值始终为红方视角，供胜率条显示。
   function displayEval(board, nextMover) {
     const owner = nextMover || RED;
+    const terminal = terminalRedScore(board, owner);
+    if (terminal !== null) return terminal;
     const baseRedScore = evaluate(board, RED);
     const moves = genAll(board, owner);
     if (!moves.length) return baseRedScore;
@@ -5162,6 +5206,7 @@ const AI = (() => {
       }
     }
     if (bestOwnerScore === -Infinity) return baseRedScore;
+    if (Math.abs(bestAfterReplyRedScore) >= 90000) return bestAfterReplyRedScore;
     const replyDelta = bestAfterReplyRedScore - baseRedScore;
     const maxDelta = _CLASSIC ? 180 : 260;
     const weight = _CLASSIC ? 0.45 : 0.5;
@@ -5356,6 +5401,7 @@ function requestDraw() {
   if (!aiState.enabled) {
     // 人人对战：直接和棋
     game.gameOver = true; game.isDraw = true; game.winner = null;
+    game.endMessage = '🤝 对局结束：双方同意和棋。';
     addLog('【双方同意和棋】', true);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
@@ -5371,6 +5417,7 @@ function requestDraw() {
     setTimeout(() => updateUI(), 2500);
   } else {
     game.gameOver = true; game.isDraw = true; game.winner = null;
+    game.endMessage = '🤝 对局结束：AI 同意和棋。';
     addLog('【AI同意和棋】', true);
     updateUI(); updateCapturedDisplay(); render();
     _reportGameEnd();
@@ -5392,6 +5439,7 @@ function resignGame() {
   game.gameOver = true;
   game.isDraw = false;
   game.winner = enemy(loser);
+  game.endMessage = `🎉 对局结束：${loser === RED ? '红' : '黑'}方认输，${game.winner === RED ? '红' : '黑'}方获胜。`;
   addLog(`【${loser === RED ? '红' : '黑'}方认输，${game.winner === RED ? '红' : '黑'}方获胜】`, true);
   updateUI(); updateCapturedDisplay(); render();
   _reportGameEnd();

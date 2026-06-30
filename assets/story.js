@@ -274,6 +274,7 @@ function normalizeState(saved) {
     achievements: saved.achievements && typeof saved.achievements === 'object' ? saved.achievements : {},
     gameInfoTab: ['author', 'settings', 'stats'].includes(saved.gameInfoTab) ? saved.gameInfoTab : 'author',
     gameInfoOpen: false,
+    mobileTrackCollapsed: Boolean(saved.mobileTrackCollapsed),
     gameInfoScrollY: 0,
     globalStats: { totalPv: 0, todayPv: 0, totalUv: 0, todayUv: 0 },
     globalStatsStatus: '正在读取科王战绩...',
@@ -294,6 +295,7 @@ function saveState() {
       activeMatch: state.activeMatch,
       matchResults: state.matchResults,
       achievements: state.achievements,
+      mobileTrackCollapsed: state.mobileTrackCollapsed,
     }),
   );
 }
@@ -776,7 +778,7 @@ function clampScenes(scenes) {
 function makeAwakeningPreludeScene(day) {
   return {
     id: `awakening-prelude-${day}`,
-    act: `第${day}天`,
+    act: getActLabel(day),
     title: '棋魂觉醒 · 上',
     kind: 'story',
     image: {
@@ -798,7 +800,7 @@ function makeChoiceScene(day, slot) {
   const selectedKey = state.selected[slot] || null;
   return {
     id: `choice-${day}`,
-    act: `第${day}天`,
+    act: getActLabel(day),
     title: day === 2 ? '棋魂觉醒 · 下' : '选择棋魂',
     kind: 'choice',
     day,
@@ -822,7 +824,7 @@ function makeAwakeningScene(day, slot, pieceKey) {
   const piece = PIECE_BY_KEY[pieceKey];
   return {
     id: `awakening-${day}`,
-    act: `第${day}天`,
+    act: getActLabel(day),
     title: piece.actTitle,
     kind: 'awakening',
     day,
@@ -853,14 +855,14 @@ function makeMatchScene(day, slot, pieceKey) {
     : `第${day}局，你赢了。${piece.name}魂帮你争下了今天的时间差。观众席还在欢呼，AI 的训练日志已经开始刷新；今晚，它会把这枚棋魂蒸馏进自己的棋谱，而下一枚棋子也开始回应你。`;
   return {
     id: `match-${day}`,
-    act: `第${day}天`,
+    act: getActLabel(day),
     title: `第${day}局`,
     kind: 'match',
     day,
     slot,
     pieceKey,
     matchTitle: `第${day}局：${piece.title}登场`,
-    objective: `你方觉醒：${current}。AI 已掌握：${previous}。必须获胜才能进入下一天。`,
+    objective: `你方觉醒：${current}。AI 已掌握：${previous}。必须获胜才能进入下一幕。`,
     resultText,
     quote: `今天的领先，只有这一盘棋的时间。`,
     body: [
@@ -948,6 +950,10 @@ function getScoreAfterDay(day) {
   const aiWins = day >= 1 ? 1 : 0;
   const playerWins = Math.max(0, Math.min(8, day - 1));
   return { aiWins, playerWins };
+}
+
+function getActLabel(day) {
+  return `第${day}幕`;
 }
 
 function isDayCompleted(day) {
@@ -1085,14 +1091,16 @@ function renderSceneActions(scene, scenes) {
 
 function renderMobileStoryTrack(scenes) {
   const scene = scenes[state.currentScene];
+  const collapsed = state.mobileTrackCollapsed;
   return `
-    <section class="mobile-story-track" aria-label="剧情进度">
+    <section class="mobile-story-track${collapsed ? ' is-collapsed' : ''}" aria-label="剧情进度">
       <div class="mobile-track-title">
         <button type="button" class="story-info-button" data-action="toggle-info" aria-label="信息与设置" aria-expanded="${state.gameInfoOpen ? 'true' : 'false'}">设置</button>
         <h2><span>${scene.act}</span>${scene.title}</h2>
         <p class="mobile-count">${state.currentScene + 1} / ${scenes.length}</p>
+        <button type="button" class="track-toggle-button" data-action="toggle-track" aria-label="${collapsed ? '展开剧情进度' : '收起剧情进度'}" aria-expanded="${collapsed ? 'false' : 'true'}">${collapsed ? '展开' : '收起'}</button>
       </div>
-      <div class="track-scroll" role="list">
+      <div class="track-scroll" role="list" ${collapsed ? 'hidden' : ''}>
         ${scenes.map((item, index) => renderTrackItem(item, index)).join('')}
       </div>
     </section>
@@ -1962,6 +1970,13 @@ function updateMatchStatusPanel(data) {
   if (data.roundText) setText('#story-round-text', data.roundText);
   if (data.gameOver && data.playerWon) setMatchUndoDisabled(true);
   else if (!data.gameOver) setMatchUndoDisabled(false);
+  if (data.gameOver && data.message) {
+    const hint = document.querySelector('#story-live-hint');
+    if (hint) {
+      hint.textContent = data.message;
+      hint.classList.add('active');
+    }
+  }
 }
 
 function updateMatchProgressPanel(data) {
@@ -1996,16 +2011,16 @@ function showMatchFinishedPanel(scene, goalReached) {
   if (hint) {
     if (scene.day === 1) {
       hint.textContent = result?.win
-        ? '第一局结束。你赢下了旧棋盘上的最后一段路。'
-        : '第一局结束。旧棋盘里的路被 AI 一点点算完了。';
+        ? '第一局结束。你吃掉了 AI 的王，赢下旧棋盘上的最后一段路。'
+        : '第一局结束。AI 吃掉了你的王，旧棋盘里的路被它一点点算完了。';
     } else if (scene.day === 10) {
       hint.textContent = goalReached
-        ? `让魂挑战成功，当前让魂分 ${result?.handicapScore || 0}。`
-        : '让魂挑战失败。可以减少让魂，或重开再冲一次。';
+        ? `让魂挑战成功。你吃掉了 AI 的王，当前让魂分 ${result?.handicapScore || 0}。`
+        : '让魂挑战失败。AI 已经吃掉你的王，可以减少让魂或重开再冲一次。';
     } else {
       hint.textContent = goalReached
-        ? '本局获胜。今天的新信息已经留在棋盘上。'
-        : '这一局还没有达成目标，可以悔棋或重开再试。';
+        ? '本局获胜。你吃掉了 AI 的王，今天的新信息已经留在棋盘上。'
+        : '这一局 AI 吃掉了你的王，还没有达成目标，可以悔棋或重开再试。';
     }
     hint.classList.add('active');
   }
@@ -2071,6 +2086,7 @@ function handleStoryAction(button, event) {
   if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
   if (action === 'toggle-handicap-soul') toggleHandicapSoul(button.dataset.piece);
   if (action === 'toggle-info') toggleGameInfoPanel();
+  if (action === 'toggle-track') toggleMobileTrack();
   if (action === 'close-info') toggleGameInfoPanel(false);
   if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);
   if (action === 'info-tab') setGameInfoTab(button.dataset.tab || 'author');
@@ -2108,6 +2124,7 @@ function bindLegacyEvents() {
       if (action === 'choose-soul') previewSoulChoice(Number(button.dataset.slot), button.dataset.piece);
       if (action === 'toggle-handicap-soul') toggleHandicapSoul(button.dataset.piece);
       if (action === 'toggle-info') toggleGameInfoPanel();
+      if (action === 'toggle-track') toggleMobileTrack();
       if (action === 'close-info') toggleGameInfoPanel(false);
       if (action === 'info-backdrop' && button === event.target) toggleGameInfoPanel(false);
       if (action === 'info-tab') setGameInfoTab(button.dataset.tab || 'author');
@@ -2138,6 +2155,12 @@ function bindLegacyEvents() {
       postGameCommand(button.dataset.gameCommand);
     });
   });
+}
+
+function toggleMobileTrack() {
+  state.mobileTrackCollapsed = !state.mobileTrackCollapsed;
+  saveState();
+  render();
 }
 
 function setGameInfoTab(tab) {
@@ -2185,6 +2208,7 @@ function completeCurrentMatchForTest() {
 }
 
 function scrollCurrentTrackItem() {
+  if (state.mobileTrackCollapsed) return;
   const current = app.querySelector('.track-item.current');
   const scroller = current?.closest('.track-scroll');
   if (!current || !scroller) return;

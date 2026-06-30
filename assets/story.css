@@ -136,12 +136,13 @@ button:disabled {
 
 .mobile-track-title {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
 }
 
-.story-info-button {
+.story-info-button,
+.track-toggle-button {
   min-height: 30px;
   padding: 0 9px;
   border: 1px solid rgba(116, 70, 31, 0.32);
@@ -155,6 +156,18 @@ button:disabled {
   font-weight: 950;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.track-toggle-button {
+  color: #6a3d20;
+}
+
+.mobile-story-track.is-collapsed {
+  padding-bottom: 8px;
+}
+
+.mobile-story-track.is-collapsed .track-scroll {
+  display: none;
 }
 
 .mobile-track-title h2 {
@@ -945,8 +958,8 @@ blockquote {
     position: relative;
     z-index: 2;
     display: grid;
-    gap: 4px;
-    padding: 7px 9px 6px;
+    gap: 2px;
+    padding: 6px 8px 4px;
     border: 1px solid rgba(91, 56, 27, 0.24);
     border-radius: 10px;
     background:
@@ -981,14 +994,15 @@ blockquote {
 
   .mobile-track-title {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 6px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    gap: 5px;
     align-items: center;
   }
 
-  .story-info-button {
+  .story-info-button,
+  .track-toggle-button {
     min-height: 26px;
-    padding: 0 8px;
+    padding: 0 7px;
     font-size: 11px;
   }
 
@@ -1036,11 +1050,11 @@ blockquote {
     position: relative;
     display: flex;
     --track-item-width: clamp(84px, 22vw, 94px);
-    --track-gap: clamp(7px, 2.2vw, 9px);
+    --track-gap: clamp(6px, 2vw, 8px);
     gap: var(--track-gap);
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 5px 2px 0;
+    padding: 3px 2px 0;
     scroll-snap-type: x proximity;
     scroll-padding-inline: 2px;
     scrollbar-width: none;
@@ -1055,7 +1069,7 @@ blockquote {
     z-index: 1;
     display: grid;
     justify-items: center;
-    gap: 3px;
+    gap: 1px;
     flex: 0 0 var(--track-item-width);
     min-width: 0;
     padding: 0;
@@ -1070,7 +1084,7 @@ blockquote {
     content: "";
     position: absolute;
     z-index: -1;
-    top: 11px;
+    top: 10px;
     left: calc(-0.5 * var(--track-gap) - 50%);
     width: calc(100% + var(--track-gap));
     height: 2px;
@@ -1083,8 +1097,8 @@ blockquote {
   }
 
   .track-dot {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     border: 2px solid rgba(116, 70, 31, 0.46);
     border-radius: 50%;
     background:
@@ -1095,19 +1109,15 @@ blockquote {
 
   .track-label {
     width: 100%;
-    min-height: 25px;
+    min-height: 13px;
     overflow: hidden;
     color: #68482f;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 850;
-    line-height: 1.15;
+    line-height: 1.05;
     text-align: center;
-    white-space: normal;
-    text-overflow: clip;
-    overflow-wrap: anywhere;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .track-item.current .track-dot {
