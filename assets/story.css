@@ -772,20 +772,57 @@ blockquote {
   overflow: hidden;
 }
 
-.story-game-frame {
+.story-game-frame-wrap {
   position: relative;
   z-index: 0;
-  display: block;
   width: min(100%, 540px, calc((var(--story-stage-height) - 236px) * 600 / 664));
   max-height: calc(var(--story-stage-height) - 236px);
   aspect-ratio: 600 / 664;
   min-height: 0;
   border: 1px solid rgba(78, 46, 22, 0.42);
   border-radius: 10px;
+  overflow: hidden;
   background: #14121d;
   box-shadow:
     inset 0 0 0 1px rgba(255, 240, 202, 0.18),
     0 12px 28px rgba(56, 33, 15, 0.2);
+}
+
+.story-game-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #14121d;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.story-game-frame-wrap.is-ready .story-game-frame {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.story-game-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #6a3d20;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0;
+  background:
+    linear-gradient(90deg, rgba(92, 63, 26, 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(92, 63, 26, 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, #d7b46d, #c9a35b);
+  background-size: 44px 44px, 44px 44px, auto;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.story-game-frame-wrap.is-ready .story-game-loading {
+  opacity: 0;
 }
 
 .story-game-side {
@@ -1127,29 +1164,30 @@ blockquote {
     align-self: stretch;
     height: 100%;
     padding: 8px;
-    --story-game-action-height: 40px;
-    --story-game-shell-gap: 7px;
+    --story-game-action-height: 34px;
+    --story-game-shell-gap: 6px;
     --story-game-side-budget: 154px;
-    --story-game-frame-width: min(
-      100%,
-      calc((100dvh - 372px - var(--story-game-action-height) - var(--story-game-shell-gap)) * 600 / 664)
-    );
+    --story-game-frame-width: min(100%, 420px);
   }
 
   .story-panel.is-playing .story-content {
-    display: grid;
+    display: block;
     height: 100%;
     padding-right: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .story-game-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, auto);
+    grid-template-rows: auto auto;
     align-content: start;
+    align-items: start;
     gap: var(--story-game-shell-gap);
     min-height: 0;
-    height: 100%;
+    height: auto;
   }
 
   .story-game-board {
@@ -1157,14 +1195,15 @@ blockquote {
     grid-template-rows: auto auto;
     align-content: start;
     justify-items: center;
-    gap: 7px;
+    gap: 5px;
+    width: 100%;
     overflow: visible;
   }
 
-  .story-game-frame {
+  .story-game-frame-wrap {
     min-height: 0;
     width: var(--story-game-frame-width);
-    max-height: calc(100dvh - 372px - var(--story-game-action-height) - var(--story-game-shell-gap));
+    max-height: none;
     border-radius: 8px;
   }
 
@@ -1175,17 +1214,22 @@ blockquote {
   }
 
   .story-game-actions {
-    gap: 7px;
+    gap: 5px;
     width: var(--story-game-frame-width);
     min-height: var(--story-game-action-height);
   }
 
-  .story-game-actions .nav-btn {
+  .story-game-actions .nav-btn,
+  .story-game-actions .nav-btn.compact {
     min-height: var(--story-game-action-height);
-    padding: 7px 6px 8px;
-    font-size: 15px;
-    line-height: 1.05;
+    padding: 4px 5px;
+    border-radius: 7px;
+    font-size: 13px;
+    line-height: 1;
     white-space: nowrap;
+    box-shadow:
+      0 2px 0 rgba(88, 53, 25, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.62);
   }
 
   .desktop-heading {

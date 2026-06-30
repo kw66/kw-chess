@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="page-title">科王象棋</title>
+<script>
+(function () {
+  try {
+    if (window.self !== window.top) {
+      document.documentElement.classList.add('embedded-game');
+    }
+  } catch (e) {}
+})();
+</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -82,6 +91,7 @@ body {
 canvas { display: block; width: 100%; max-width: 100%; height: auto; }
 
 /* iframe 嵌入模式：只显示棋盘，统计数据由外层 app 面板展示 */
+html.embedded-game body,
 body.in-iframe {
   padding: 0;
   height: 100vh;
@@ -94,6 +104,7 @@ body.in-iframe {
     radial-gradient(ellipse at 50% 0%, rgba(164, 124, 55, 0.18) 0%, transparent 58%),
     linear-gradient(180deg, #1a160f 0%, #0f0e12 100%);
 }
+html.embedded-game #game-layout,
 body.in-iframe #game-layout {
   width: 100%;
   height: 100vh;
@@ -103,6 +114,7 @@ body.in-iframe #game-layout {
   justify-content: center;
   gap: 0;
 }
+html.embedded-game #center-col,
 body.in-iframe #center-col {
   width: 100%;
   height: 100vh;
@@ -112,11 +124,17 @@ body.in-iframe #center-col {
   align-items: center;
   justify-content: center;
 }
+html.embedded-game #board-wrap,
 body.in-iframe #board-wrap {
   width: min(100%, calc(100dvh * 600 / 664));
   max-width: 100%;
   flex: 0 0 auto;
 }
+html.embedded-game #log-panel,
+html.embedded-game #cap-col,
+html.embedded-game #info-bar,
+html.embedded-game #controls,
+html.embedded-game #piece-hint,
 body.in-iframe #log-panel,
 body.in-iframe #cap-col,
 body.in-iframe #info-bar,
@@ -330,6 +348,7 @@ button:hover { filter: brightness(1.2); }
     min-height: 44px;
   }
 
+  html.embedded-game #game-layout,
   body.in-iframe #game-layout {
     height: 100vh;
     height: 100dvh;
@@ -337,6 +356,7 @@ button:hover { filter: brightness(1.2); }
     align-items: center;
     justify-content: center;
   }
+  html.embedded-game #center-col,
   body.in-iframe #center-col {
     height: 100vh;
     height: 100dvh;
@@ -345,10 +365,14 @@ button:hover { filter: brightness(1.2); }
     align-items: center;
     justify-content: center;
   }
+  html.embedded-game #board-wrap,
   body.in-iframe #board-wrap {
     width: min(100%, calc(100dvh * 600 / 664));
     max-width: 100%;
   }
+  html.embedded-game #info-bar,
+  html.embedded-game #controls,
+  html.embedded-game #piece-hint,
   body.in-iframe #info-bar,
   body.in-iframe #controls,
   body.in-iframe #piece-hint { display: none; }
@@ -369,7 +393,7 @@ button:hover { filter: brightness(1.2); }
   <!-- 中央：棋盘 + 控制 -->
   <div id="center-col">
     <div id="board-wrap">
-      <canvas id="board-canvas"></canvas>
+      <canvas id="board-canvas" width="600" height="664"></canvas>
     </div>
     <div id="info-bar">
       <div id="turn-indicator" class="red">红方回合</div>

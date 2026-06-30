@@ -1612,13 +1612,17 @@ function renderEmbeddedMatch(scene) {
   return `
     <div class="story-game-shell">
       <div class="story-game-board">
-        <iframe
-          id="story-game-frame"
-          class="story-game-frame"
-          src="${buildGameSrc(scene)}"
-          title="${scene.matchTitle}"
-          allow="fullscreen"
-        ></iframe>
+        <div class="story-game-frame-wrap" data-game-frame-wrap>
+          <iframe
+            id="story-game-frame"
+            class="story-game-frame"
+            src="${buildGameSrc(scene)}"
+            title="${scene.matchTitle}"
+            allow="fullscreen"
+            data-story-game-frame
+          ></iframe>
+          <div class="story-game-loading" aria-hidden="true">棋盘载入中</div>
+        </div>
         <div class="story-game-actions${actionClass}">
           <button type="button" class="nav-btn secondary compact" data-game-command="restart">重开</button>
           <button type="button" class="nav-btn secondary compact" data-game-command="undo">悔棋</button>
@@ -1772,7 +1776,7 @@ function postGameCommand(command, payload = {}) {
     if (undoButton?.disabled) return;
   }
   const frame = document.querySelector('#story-game-frame');
-  if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) return;
+  if (!frame || frame.tagName !== 'IFRAME' || !frame.contentWindow) return;
   frame.contentWindow.postMessage({ type: 'game-command', command, ...payload }, '*');
 }
 
@@ -1914,8 +1918,31 @@ function handleGameMessage(event) {
   completeMatchFromGame(scene, event.data.stats || {});
 }
 
+function bindEmbeddedFrameLoad() {
+  const frame = document.querySelector('[data-story-game-frame]');
+  const wrap = frame?.closest('[data-game-frame-wrap]');
+  if (!frame || frame.tagName !== 'IFRAME' || !wrap) return;
+  const isRealFrameReady = () => {
+    try {
+      const href = frame.contentWindow?.location?.href || '';
+      const src = frame.getAttribute('src') || '';
+      return !!(href && href !== 'about:blank' && src && href.includes('index-legacy.html') && frame.contentDocument?.readyState === 'complete');
+    } catch (error) {
+      return false;
+    }
+  };
+  const markReady = () => {
+    if (!isRealFrameReady()) return;
+    wrap.classList.add('is-ready');
+    frame.removeEventListener('load', markReady);
+  };
+  markReady();
+  frame.addEventListener('load', markReady);
+}
+
 function resetMatchPanel() {
   requestAnimationFrame(() => {
+    bindEmbeddedFrameLoad();
     setMatchUndoDisabled(false);
     setText('#story-player-pct', `${DEFAULT_MATCH_PROGRESS.playerPct}%`);
     setText('#story-turn-text', DEFAULT_MATCH_PROGRESS.turnText);
