@@ -4924,6 +4924,7 @@ const AI = (() => {
       }
       best = safe.length ? safe[Math.floor(Math.random() * safe.length)] : moves[0];
     }
+    if (_CLASSIC && best) best = classicRootTacticalSanity(board, owner, moves, best);
     return best;
   }
 
@@ -5116,6 +5117,9 @@ const AI = (() => {
     if (!ponderAbort && shouldContinue() && !best) {
       best = _CLASSIC ? classicTwoPlyFallback(board, owner, moves) : fallbackRootMove(board, owner, moves);
     }
+    if (!ponderAbort && shouldContinue() && _CLASSIC && best) {
+      best = classicRootTacticalSanity(board, owner, moves, best);
+    }
     return ponderAbort || !shouldContinue() ? null : best;
   }
 
@@ -5197,6 +5201,32 @@ const AI = (() => {
     }
 
     memo.set(key, best);
+    return best;
+  }
+
+  function classicMoveSettledOwnerScore(board, owner, move) {
+    const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+    if (!searchMoveAllowedAfter(nb, owner, kc)) return -Infinity;
+    if (createsKnownRepetition(nb, enemy(owner), 1)) return -90000;
+    if (kc === enemy(owner)) return 99980;
+    if (kc === owner) return -99980;
+    if (kc === 'draw') return 0;
+    const redScore = classicCaptureSettledRedScore(nb, enemy(owner));
+    return owner === RED ? redScore : -redScore;
+  }
+
+  function classicRootTacticalSanity(board, owner, moves, currentBest) {
+    if (!_CLASSIC || !currentBest) return currentBest;
+    let best = currentBest;
+    let bestScore = classicMoveSettledOwnerScore(board, owner, currentBest);
+    const margin = 160;
+    for (const move of moves) {
+      const score = classicMoveSettledOwnerScore(board, owner, move);
+      if (score > bestScore + margin) {
+        best = move;
+        bestScore = score;
+      }
+    }
     return best;
   }
 
