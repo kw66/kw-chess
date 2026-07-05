@@ -4924,7 +4924,7 @@ const AI = (() => {
       }
       best = safe.length ? safe[Math.floor(Math.random() * safe.length)] : moves[0];
     }
-    if (_CLASSIC && best) best = classicRootTacticalSanity(board, owner, moves, best);
+    if (usesRootTacticalSanity() && best) best = classicRootTacticalSanity(board, owner, moves, best);
     return best;
   }
 
@@ -5117,7 +5117,7 @@ const AI = (() => {
     if (!ponderAbort && shouldContinue() && !best) {
       best = _CLASSIC ? classicTwoPlyFallback(board, owner, moves) : fallbackRootMove(board, owner, moves);
     }
-    if (!ponderAbort && shouldContinue() && _CLASSIC && best) {
+    if (!ponderAbort && shouldContinue() && usesRootTacticalSanity() && best) {
       best = classicRootTacticalSanity(board, owner, moves, best);
     }
     return ponderAbort || !shouldContinue() ? null : best;
@@ -5216,10 +5216,10 @@ const AI = (() => {
   }
 
   function classicRootTacticalSanity(board, owner, moves, currentBest) {
-    if (!_CLASSIC || !currentBest) return currentBest;
+    if (!usesRootTacticalSanity() || !currentBest) return currentBest;
     let best = currentBest;
     let bestScore = classicMoveSettledOwnerScore(board, owner, currentBest);
-    const margin = 160;
+    const margin = _CLASSIC ? 160 : 80;
     for (const move of moves) {
       const score = classicMoveSettledOwnerScore(board, owner, move);
       if (score > bestScore + margin) {
@@ -5228,6 +5228,10 @@ const AI = (() => {
       }
     }
     return best;
+  }
+
+  function usesRootTacticalSanity() {
+    return _CLASSIC || _MIXED;
   }
 
   function bestReplyAdjustedRedScore(board, owner, move) {
