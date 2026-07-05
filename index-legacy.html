@@ -5159,6 +5159,47 @@ const AI = (() => {
     return null;
   }
 
+  function classicCaptureSettledRedScore(board, owner, depth = 6, memo = new Map()) {
+    const terminal = terminalRedScore(board, owner);
+    if (terminal !== null) return terminal;
+
+    const key = `${hashBoard(board, owner)}:${owner}:${depth}`;
+    if (memo.has(key)) return memo.get(key);
+
+    const stand = evaluate(board, RED);
+    if (depth <= 0) {
+      memo.set(key, stand);
+      return stand;
+    }
+
+    let best = stand;
+    const captures = genCaptures(board, owner)
+      .filter(m => m.kind === 'eat')
+      .sort((a, b) => {
+        const at = board[a.row]?.[a.col];
+        const bt = board[b.row]?.[b.col];
+        const av = at ? pieceVal(at) * Math.max(1, at.layer || 1) : 0;
+        const bv = bt ? pieceVal(bt) * Math.max(1, bt.layer || 1) : 0;
+        return bv - av;
+      });
+
+    for (const move of captures) {
+      const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
+      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
+      let score;
+      if (kc === RED) score = -99980;
+      else if (kc === BLACK) score = 99980;
+      else if (kc === 'draw') score = 0;
+      else score = classicCaptureSettledRedScore(nb, enemy(owner), depth - 1, memo);
+
+      if (owner === RED) best = Math.max(best, score);
+      else best = Math.min(best, score);
+    }
+
+    memo.set(key, best);
+    return best;
+  }
+
   function bestReplyAdjustedRedScore(board, owner, move) {
     const first = redScoreAfterMove(board, owner, move);
     if (!first) return null;
@@ -5191,6 +5232,7 @@ const AI = (() => {
     const owner = nextMover || RED;
     const terminal = terminalRedScore(board, owner);
     if (terminal !== null) return terminal;
+    if (_CLASSIC) return classicCaptureSettledRedScore(board, owner);
     const baseRedScore = evaluate(board, RED);
     const moves = genAll(board, owner);
     if (!moves.length) return baseRedScore;
