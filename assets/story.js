@@ -2006,7 +2006,7 @@ function setMatchUndoDisabled(disabled) {
 
 function showMatchFinishedPanel(scene, goalReached) {
   const result = state.matchResults[scene.id];
-  setMatchUndoDisabled(goalReached);
+  setMatchUndoDisabled(false);
   const hint = document.querySelector('#story-live-hint');
   if (hint) {
     if (scene.day === 1) {

@@ -2001,7 +2001,7 @@ function calcLegalMoves(col, row, layers, includeSpecial = false) {
     }
 
     // 己方王被消灭，或传统模式走完仍被将军/将帅对脸：
-    // 不直接禁走，标成红点；玩家确认落子后按认负结算。
+    // 不直接禁走，标成红点；确认落子后也不立即判负，必须等对方下一手实际吃王。
     if (wouldLeaveOwnerUnsafe(nb, game.turn, kingCaptured)) return { ...m, danger: 'fatal', preview, selfFatal: true };
     // 和棋或敌方王被消灭 → 显示为安全（允许选择）
     if (kingCaptured) return { ...m, danger: 'safe', preview };
@@ -2449,22 +2449,7 @@ async function executeMove(move) {
     return;
   }
 
-  if (move.selfFatal) {
-    finishByKingTaken(piece.owner, `${piece.owner === RED ? '红' : '黑'}方走入致命威胁`);
-    updateUI(); updateCapturedDisplay(); render();
-    _reportGameEnd();
-    return;
-  }
-
   game.turn = enemy(game.turn);
-
-  // 停局检测：若下一方无任何合法走法，判该方负
-  if (!hasAnyLegalMove(game.board, game.turn)) {
-    finishByKingTaken(game.turn, `${game.turn === RED ? '红' : '黑'}方无路可走`);
-    updateUI(); updateCapturedDisplay(); render();
-    _reportGameEnd();
-    return;
-  }
 
   game.kingDanger = assessKingDanger(game.board, game.turn);
   updateUI(); updateCapturedDisplay(); render();
@@ -2489,7 +2474,7 @@ async function executeMove(move) {
 }
 
 function undoMove() {
-  if (anim.playing || !game.history.length || hasLockedWinningResult()) return;
+  if (anim.playing || !game.history.length) return;
   abortAIThinking();
   const prev = game.history.pop();
   logUndo();
@@ -2522,12 +2507,8 @@ function undoMove() {
   }
 }
 
-function hasLockedWinningResult() {
-  return game.gameOver && !game.isDraw && game.winner === getPlayerSide();
-}
-
 function undoCommand() {
-  if (anim.playing || !game.history.length || hasLockedWinningResult()) return;
+  if (anim.playing || !game.history.length) return;
   const lastSnapshot = game.history[game.history.length - 1];
   const lastMover = lastSnapshot?.turn;
   const steps = aiState.enabled && lastMover === aiState.side && game.history.length >= 2 ? 2 : 1;
