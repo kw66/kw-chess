@@ -1968,8 +1968,7 @@ function resetMatchPanel() {
 function updateMatchStatusPanel(data) {
   if (data.turnText) setText('#story-turn-text', data.turnText);
   if (data.roundText) setText('#story-round-text', data.roundText);
-  if (data.gameOver && data.playerWon) setMatchUndoDisabled(true);
-  else if (!data.gameOver) setMatchUndoDisabled(false);
+  setMatchUndoDisabled(false);
   if (data.gameOver && data.message) {
     const hint = document.querySelector('#story-live-hint');
     if (hint) {

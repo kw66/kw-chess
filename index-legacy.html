@@ -1281,6 +1281,10 @@ function applyMove(board, srcCol, srcRow, move) {
         if (t.groups) t.groups = applyGroupDamage(t.groups, 1);
         log.push(`爆炸1伤${t.type}@${nc},${nr}→剩${t.layer}层`);
       } else {
+        if (t.type === TYPE.KING) {
+          log.push(`爆炸波及${t.type}@${nc},${nr}，王必须被直接吃掉才会结束`);
+          return;
+        }
         checkKing(nr, nc);
         b[nr][nc] = null;
         log.push(`爆炸消灭${t.type}@${nc},${nr}`);
@@ -1415,6 +1419,10 @@ function applyMove(board, srcCol, srcRow, move) {
       log.push(`车冲撞→推${pushed.type}叠入同类(${pushed.layer}+${oldTgtLayer}→${newLayer}层)${remDesc}`);
     } else {
       // 撞敌方
+      if (landTarget.type === TYPE.KING) {
+        log.push(`推${pushed.type}撞到${landTarget.type}@${landC},${landR}，王必须被直接吃掉才会结束`);
+        return { board: b, log, kingCaptured };
+      }
       const res = combatResult(pushed.layer, landTarget.layer);
       if (res.defSurvive === 0) checkKing(landR, landC);
       if (res.atkSurvive > 0) {
@@ -1456,6 +1464,11 @@ function applyMove(board, srcCol, srcRow, move) {
       t.layer -= dmg;
       if (t.groups) t.groups = applyGroupDamage(t.groups, dmg);
     } else {
+      if (t.type === TYPE.KING) {
+        t.layer = 1;
+        if (t.groups) t.groups = [1];
+        return;
+      }
       checkKing(wr, wc);
       b[wr][wc] = null;
     }
@@ -4677,7 +4690,7 @@ const AI = (() => {
       }
     }
 
-    if (!searchedAny) return -99980 - depth;
+    if (!searchedAny) return evaluate(board, owner);
     if (bestMove) ttStore(hash, depth, best, flag, bestMove);
     return best === -Infinity ? -99999 : best;
   }
@@ -5130,17 +5143,6 @@ const AI = (() => {
     if (!findKing(board, RED) && !findKing(board, BLACK)) return 0;
     if (!findKing(board, RED)) return -99980;
     if (!findKing(board, BLACK)) return 99980;
-    const moves = genAll(board, owner);
-    let hasSafe = false;
-    for (const move of moves) {
-      const { board: nb, kingCaptured: kc } = applyMove(board, move.srcCol, move.srcRow, move);
-      if (!searchMoveAllowedAfter(nb, owner, kc)) continue;
-      hasSafe = true;
-      if (kc === RED) return -99980;
-      if (kc === BLACK) return 99980;
-      if (kc === 'draw') return 0;
-    }
-    if (!hasSafe) return owner === RED ? -95000 : 95000;
     return null;
   }
 
@@ -5237,7 +5239,6 @@ const AI = (() => {
       }
     }
 
-    if (!hasReply) return replyOwner === RED ? -95000 : 95000;
     return hasReply ? replyRedScore : first.score;
   }
 
