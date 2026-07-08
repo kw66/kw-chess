@@ -1171,7 +1171,7 @@ function renderInfoAuthorPage() {
       </article>
       <article class="game-info-card project-card">
         <p><a href="https://github.com/kw66/kw-chess" target="_blank" rel="noreferrer"><span>项目地址</span></a><em>（求个 star）</em></p>
-        <p><span>小红书交流帖</span><em>暂未开放链接</em></p>
+        <p><a href="http://xhslink.com/o/8vKGpeVaZ7a" target="_blank" rel="noreferrer"><span>小红书交流帖</span></a><em>交流与反馈</em></p>
       </article>
     </div>
   `;
