@@ -300,9 +300,28 @@ function saveState() {
   );
 }
 
+function getMatchResultForDay(day) {
+  const result = state.matchResults?.[`match-${day}`];
+  return result && typeof result === 'object' ? result : null;
+}
+
+function getDayWinner(day) {
+  if (!state.completedDays.includes(day)) return null;
+  const result = getMatchResultForDay(day);
+  if (result && typeof result.win === 'boolean') return result.win ? 'player' : 'ai';
+  if (day === 1) return 'ai';
+  if (day >= 2 && day <= 9) return 'player';
+  return null;
+}
+
 function getScore() {
-  const playerWins = state.completedDays.filter((day) => day >= 2 && day <= 9).length;
-  const aiWins = state.completedDays.includes(1) ? 1 : 0;
+  let playerWins = 0;
+  let aiWins = 0;
+  for (let day = 1; day <= 9; day += 1) {
+    const winner = getDayWinner(day);
+    if (winner === 'player') playerWins += 1;
+    if (winner === 'ai') aiWins += 1;
+  }
   return { playerWins, aiWins };
 }
 
@@ -629,6 +648,23 @@ function buildScenes() {
 
   if (!isDayCompleted(1)) return clampScenes(scenes);
 
+  if (getDayWinner(1) === 'player') {
+    scenes.push({
+      id: 'first-win-ending',
+      act: '尾声',
+      title: '暂时的胜利',
+      kind: 'story',
+      restartOnly: true,
+      quote: '第一局结束得太早，AI 还没有追上你。',
+      body: [
+        '你吃掉了 AI 的王。场馆里安静了一瞬，随后掌声一点点响起来。',
+        '这一局说明，至少在此刻，AI 还没有真正越过人类顶尖棋手的边界。它需要更多训练，更多棋谱，也需要重新理解你在棋盘上的选择。',
+        '所以这条时间线不会出现棋魂觉醒。没有崩塌，也没有反击。故事停在这里：AI 还要继续练，而你暂时仍站在它前面。',
+      ],
+    });
+    return clampScenes(scenes);
+  }
+
   scenes.push({
     id: 'after-loss',
     act: '第二幕',
@@ -947,8 +983,13 @@ function formatSoulKeys(keys, emptyText = '无') {
 }
 
 function getScoreAfterDay(day) {
-  const aiWins = day >= 1 ? 1 : 0;
-  const playerWins = Math.max(0, Math.min(8, day - 1));
+  let aiWins = 0;
+  let playerWins = 0;
+  for (let currentDay = 1; currentDay <= Math.min(9, day); currentDay += 1) {
+    const winner = getDayWinner(currentDay) || (currentDay === 1 ? 'ai' : 'player');
+    if (winner === 'player') playerWins += 1;
+    if (winner === 'ai') aiWins += 1;
+  }
   return { aiWins, playerWins };
 }
 
@@ -1041,8 +1082,15 @@ function startMatch(scene) {
 }
 
 function closeMatch() {
+  const scenes = buildScenes();
+  const scene = scenes[state.currentScene];
+  const goFirstWinEnding = scene?.id === 'match-1' && isDayCompleted(1) && getMatchResultForDay(1)?.win;
   state.activeMatch = null;
   postGameCommand('abort-ai');
+  if (goFirstWinEnding) {
+    moveToScene(state.currentScene + 1);
+    return;
+  }
   saveState();
   render();
 }
@@ -1076,15 +1124,17 @@ function render() {
 
 function renderSceneActions(scene, scenes) {
   const isEnding = scene.kind === 'ending';
+  const primaryAction = scene.restartOnly ? 'restart' : 'complete';
   const previewKey = scene.kind === 'choice' ? getChoicePreviewKey(scene.slot) : null;
   const primaryDisabled = !isEnding
+    && !scene.restartOnly
     && scene.kind === 'choice'
     && isChoiceEditing(scene.slot)
     && (!previewKey || !canUseSoulAtSlot(scene.slot, previewKey));
   return `
     <div class="scene-actions">
       <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
-      <button type="button" class="nav-btn primary" data-action="complete" ${isEnding || primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>
+      <button type="button" class="nav-btn primary" data-action="${primaryAction}" ${isEnding || primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>
     </div>
   `;
 }
@@ -1519,13 +1569,30 @@ function decorateParagraph(paragraph, index) {
   return `<span class="story-mark">${marks[(index - 1) % marks.length]}</span>${paragraph}`;
 }
 
+function getMatchResultText(scene) {
+  if (scene.id === 'match-1' && getMatchResultForDay(1)?.win) {
+    return '第一局结束，比分来到 AI 0 : 1 你。你吃掉了 AI 的王，赢下旧棋盘上的最后一段路。';
+  }
+  return scene.resultText;
+}
+
+function getMatchBody(scene) {
+  if (scene.id === 'match-1' && getMatchResultForDay(1)?.win) {
+    return [
+      'AI 的布局没有崩盘，但它没能压住你。中后盘的几个交换之后，你抓住了它评估里最薄的一层缝隙。',
+      '它还会复盘，还会训练，还会变强。可至少这一刻，它暂时还没有超过你。',
+    ];
+  }
+  return scene.body;
+}
+
 function renderMatchText(scene) {
   const completed = isMatchCompleted(scene);
   const retryText = getRetryText(scene);
   if (!completed && !retryText) return '';
   return `
     <div class="story-text match-text">
-      ${completed ? `<p>${scene.resultText}</p>${scene.body.map((paragraph, index) => `<p>${decorateParagraph(paragraph, index + 1)}</p>`).join('')}` : ''}
+      ${completed ? `<p>${getMatchResultText(scene)}</p>${getMatchBody(scene).map((paragraph, index) => `<p>${decorateParagraph(paragraph, index + 1)}</p>`).join('')}` : ''}
       ${!completed && retryText ? `<p class="retry-text">${retryText}</p>` : ''}
       ${completed ? '<div class="match-inline-actions"><button type="button" class="nav-btn secondary compact" data-action="replay-match">重下本局</button></div>' : ''}
     </div>
@@ -1602,6 +1669,7 @@ function getMatchBrief(scene) {
 }
 
 function getPrimaryActionLabel(scene) {
+  if (scene.restartOnly) return '重新开始';
   if (scene.kind === 'handicap-choice') return '开始让魂挑战';
   if (scene.kind === 'choice') {
     const previewKey = getChoicePreviewKey(scene.slot);
@@ -2024,7 +2092,11 @@ function showMatchFinishedPanel(scene, goalReached) {
     hint.classList.add('active');
   }
   const exitButton = document.querySelector('[data-action="exit-match"]');
-  if (exitButton) exitButton.textContent = goalReached ? '继续剧情' : '返回剧情';
+  if (exitButton) {
+    exitButton.textContent = scene.day === 1 && result?.win
+      ? '查看结局'
+      : goalReached ? '继续剧情' : '返回剧情';
+  }
 }
 
 function updateLivePieceHint(data) {
