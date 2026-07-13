@@ -3573,7 +3573,7 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 const aiState = { enabled: false, side: _AI_SIDE, thinking: false, timeLimit: 5000, strength: _AI_STRENGTH, pondering: false, ponderTimer: null, searchToken: 0 };
 
-const AI = (() => {
+function createAI() {
   // ── 配置 ──
   const TT_BITS = 20;
   const TT_SIZE = 1 << TT_BITS;          // 1048576 条目（4×扩容，提升命中率）
@@ -3729,9 +3729,18 @@ const AI = (() => {
   //  ② 置换表
   // ══════════════════════════════════════════════
   const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
-  const tt = new Array(TT_SIZE).fill(null);
+  let tt = null;
+
+  function ensureSearchTables() {
+    if (tt) return;
+    tt = new Array(TT_SIZE).fill(null);
+    killers = Array.from({ length: MAX_PLY }, () => [null, null]);
+    historyTab = Array.from({ length: 90 }, () => new Int32Array(90));
+    counterTab = Array.from({ length: 90 }, () => new Array(90).fill(null));
+  }
 
   function ttProbe(hash, depth, alpha, beta) {
+    ensureSearchTables();
     const e = tt[hash & TT_MASK];
     if (!e || e.hash !== hash) return null;
     if (e.depth >= depth) {
@@ -3742,6 +3751,7 @@ const AI = (() => {
     return { move: e.move }; // 深度不够仅返回走法用于排序
   }
   function ttStore(hash, depth, score, flag, move) {
+    ensureSearchTables();
     const i = hash & TT_MASK;
     if (!tt[i] || tt[i].depth <= depth) tt[i] = { hash, depth, score, flag, move };
   }
@@ -3749,13 +3759,14 @@ const AI = (() => {
   // ══════════════════════════════════════════════
   //  ③ 杀手着法（每层2个）
   // ══════════════════════════════════════════════
-  const killers = Array.from({ length: MAX_PLY }, () => [null, null]);
+  let killers = null;
 
   function moveEq(a, b) {
     return a && b && a.srcCol === b.srcCol && a.srcRow === b.srcRow
       && a.col === b.col && a.row === b.row && a.kind === b.kind && a.layers === b.layers;
   }
   function addKiller(ply, m) {
+    ensureSearchTables();
     if (ply >= MAX_PLY) return;
     if (m.kind === 'eat') return;
     if (moveEq(killers[ply][0], m)) return;
@@ -3763,6 +3774,7 @@ const AI = (() => {
     killers[ply][0] = m;
   }
   function isKiller(ply, m) {
+    ensureSearchTables();
     if (ply >= MAX_PLY) return false;
     return moveEq(killers[ply][0], m) || moveEq(killers[ply][1], m);
   }
@@ -3770,20 +3782,28 @@ const AI = (() => {
   // ══════════════════════════════════════════════
   //  ④ 历史启发表
   // ══════════════════════════════════════════════
-  const historyTab = Array.from({ length: 90 }, () => new Int32Array(90));
+  let historyTab = null;
   function hIdx(c, r) { return r * 9 + c; }
-  function addHistory(m, depth) { historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)] += depth * depth; }
-  function getHistory(m) { return historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)]; }
+  function addHistory(m, depth) {
+    ensureSearchTables();
+    historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)] += depth * depth;
+  }
+  function getHistory(m) {
+    ensureSearchTables();
+    return historyTab[hIdx(m.srcCol, m.srcRow)][hIdx(m.col, m.row)];
+  }
 
   // ── 反向走法启发（Counter-Move Heuristic）──
   // counterTab[prevFrom][prevTo] = 上次对手走 prev 后，我方产生 beta-cutoff 的走法
-  const counterTab = Array.from({ length: 90 }, () => new Array(90).fill(null));
+  let counterTab = null;
   let prevMove = null; // 上一步对手走法（negamax 搜索路径中）
   function addCounter(prev, m) {
+    ensureSearchTables();
     if (!prev || m.kind === 'eat') return;
     counterTab[hIdx(prev.srcCol, prev.srcRow)][hIdx(prev.col, prev.row)] = m;
   }
   function getCounter(prev) {
+    ensureSearchTables();
     if (!prev) return null;
     return counterTab[hIdx(prev.srcCol, prev.srcRow)][hIdx(prev.col, prev.row)];
   }
@@ -4825,6 +4845,7 @@ const AI = (() => {
   }
 
   function bestMove(board, owner, ms, history) {
+    ensureSearchTables();
     const dl = Date.now() + ms;
     let best = null;
     nodes = 0; stopped = false; ponderAbort = false;
@@ -5085,6 +5106,7 @@ const AI = (() => {
   }
 
   async function bestMoveAsync(board, owner, ms, history, shouldContinue = () => true) {
+    ensureSearchTables();
     const totalMs = Math.max(80, Math.trunc(Number(ms) || 0));
     const start = Date.now();
     const sliceMs = Math.min(totalMs, totalMs >= 5500 ? 3200 : totalMs >= 3500 ? 1400 : 800);
@@ -5138,7 +5160,12 @@ const AI = (() => {
     return ponderAbort || !shouldContinue() ? null : best;
   }
 
-  function clearTT() { tt.fill(null); for (const row of historyTab) row.fill(0); for (const row of counterTab) row.fill(null); }
+  function clearTT() {
+    if (!tt) return;
+    tt.fill(null);
+    for (const row of historyTab) row.fill(0);
+    for (const row of counterTab) row.fill(null);
+  }
 
   // 供显示用：带静态搜索（QS）的快速估值，解算吃子链后再返回分数
   // nextMover = 下一个实际走棋方；返回值始终为红方视角（正=红方有利）
@@ -5353,7 +5380,26 @@ const AI = (() => {
     _debugGenAll: genAll,
     _debugHashBoard: hashBoard,
   };
-})();
+}
+
+let AI_INSTANCE = null;
+function getAI() {
+  if (!AI_INSTANCE) AI_INSTANCE = createAI();
+  return AI_INSTANCE;
+}
+const AI = {
+  bestMove: (...args) => getAI().bestMove(...args),
+  bestMoveAsync: (...args) => getAI().bestMoveAsync(...args),
+  clearTT: () => { if (AI_INSTANCE) AI_INSTANCE.clearTT(); },
+  evaluate: (...args) => AI_INSTANCE ? AI_INSTANCE.evaluate(...args) : 0,
+  quickEval: (...args) => AI_INSTANCE ? AI_INSTANCE.quickEval(...args) : 0,
+  displayEval: (...args) => AI_INSTANCE ? AI_INSTANCE.displayEval(...args) : 0,
+  ponder: (...args) => { if (AI_INSTANCE) AI_INSTANCE.ponder(...args); },
+  ponderLoop: (...args) => { if (AI_INSTANCE) AI_INSTANCE.ponderLoop(...args); },
+  abortPonder: () => { if (AI_INSTANCE) AI_INSTANCE.abortPonder(); },
+  _debugGenAll: (...args) => getAI()._debugGenAll(...args),
+  _debugHashBoard: (...args) => getAI()._debugHashBoard(...args),
+};
 
 if (_urlParams.get('debug') === '1') {
   window.__kwDebug = {
@@ -5574,6 +5620,7 @@ if (window.self !== window.top) {
 updateUI();
 render();
 updateScoreDisplay(false);
+try { window.parent.postMessage({ type: 'game-ready' }, '*'); } catch(e) {}
 
 // URL 参数：自动开启 AI
 if (_AI_ON) {

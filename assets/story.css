@@ -836,6 +836,8 @@ blockquote {
 
 .story-game-frame-wrap.is-ready .story-game-loading {
   opacity: 0;
+  visibility: hidden;
+  display: none;
 }
 
 .story-game-side {

@@ -2036,15 +2036,21 @@ function confirmSoulChoice(slot) {
 
 function handleGameMessage(event) {
   if (!event.data) return;
+  if (event.data.type === 'game-ready') {
+    markEmbeddedFrameReady(event);
+    return;
+  }
   if (event.data.type === 'piece-selected') {
     updateLivePieceHint(event.data);
     return;
   }
   if (event.data.type === 'game-status') {
+    markEmbeddedFrameReady(event);
     updateMatchStatusPanel(event.data);
     return;
   }
   if (event.data.type === 'game-progress') {
+    markEmbeddedFrameReady(event);
     updateMatchProgressPanel(event.data);
     return;
   }
@@ -2057,6 +2063,17 @@ function handleGameMessage(event) {
     return;
   }
   completeMatchFromGame(scene, event.data.stats || {});
+}
+
+function markEmbeddedFrameReady(event = null) {
+  const frame = document.querySelector('[data-story-game-frame]');
+  const wrap = frame?.closest('[data-game-frame-wrap]');
+  if (!frame || frame.tagName !== 'IFRAME' || !wrap) return false;
+  if (event?.source && frame.contentWindow && event.source !== frame.contentWindow) return false;
+  const src = frame.getAttribute('src') || '';
+  if (!src.includes('index-legacy.html')) return false;
+  wrap.classList.add('is-ready');
+  return true;
 }
 
 function bindEmbeddedFrameLoad() {
