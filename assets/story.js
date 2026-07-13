@@ -235,6 +235,20 @@ const app = document.querySelector('#app');
 const state = loadState();
 let messageListenerBound = false;
 
+const PRACTICE_MATCH_SCENE = {
+  id: 'practice-match',
+  act: '练习',
+  title: '练习模式',
+  kind: 'match',
+  day: 9,
+  practice: true,
+  matchTitle: '练习模式：全魂对决',
+  objective: '双方七枚棋魂全部觉醒。这里不推进剧情，只用来直接练习科王象棋的完整规则。',
+  resultText: '',
+  quote: '',
+  body: [],
+};
+
 const DEFAULT_MATCH_PROGRESS = {
   playerPct: 50,
   aiPct: 50,
@@ -1009,6 +1023,10 @@ function isCurrentMatchActive(scene) {
   return scene.kind === 'match' && state.activeMatch === scene.id;
 }
 
+function getActiveRenderScene(scene) {
+  return state.activeMatch === PRACTICE_MATCH_SCENE.id ? PRACTICE_MATCH_SCENE : scene;
+}
+
 function isMatchCompleted(scene) {
   return scene.kind === 'match' && isDayCompleted(scene.day);
 }
@@ -1081,12 +1099,29 @@ function startMatch(scene) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function startPracticeMatch() {
+  state.currentScene = 0;
+  state.activeMatch = PRACTICE_MATCH_SCENE.id;
+  delete state.matchResults[PRACTICE_MATCH_SCENE.id];
+  render();
+  resetMatchPanel();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function closeMatch() {
   const scenes = buildScenes();
-  const scene = scenes[state.currentScene];
+  const isPractice = state.activeMatch === PRACTICE_MATCH_SCENE.id;
+  const scene = isPractice ? PRACTICE_MATCH_SCENE : scenes[state.currentScene];
   const goFirstWinEnding = scene?.id === 'match-1' && isDayCompleted(1) && getMatchResultForDay(1)?.win;
   state.activeMatch = null;
   postGameCommand('abort-ai');
+  if (isPractice) {
+    state.currentScene = 0;
+    delete state.matchResults[PRACTICE_MATCH_SCENE.id];
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
   if (goFirstWinEnding) {
     moveToScene(state.currentScene + 1);
     return;
@@ -1098,14 +1133,15 @@ function closeMatch() {
 function render() {
   const scenes = buildScenes();
   const scene = scenes[state.currentScene];
-  const activeMatch = isCurrentMatchActive(scene);
+  const activeScene = getActiveRenderScene(scene);
+  const activeMatch = isCurrentMatchActive(activeScene);
   app.innerHTML = `
     <main class="shell${activeMatch ? ' is-playing' : ''}">
       ${renderGameInfoPanel()}
       ${renderMobileStoryTrack(scenes)}
-      <article class="story-panel kind-${scene.kind}${activeMatch ? ' is-playing' : ''}">
+      <article class="story-panel kind-${activeMatch ? activeScene.kind : scene.kind}${activeMatch ? ' is-playing' : ''}">
         <div class="story-content">
-          ${activeMatch ? renderEmbeddedMatch(scene) : renderStoryScene(scene)}
+          ${activeMatch ? renderEmbeddedMatch(activeScene) : renderStoryScene(scene)}
         </div>
       </article>
       ${activeMatch ? '' : renderSceneActions(scene, scenes)}
@@ -1125,6 +1161,8 @@ function render() {
 function renderSceneActions(scene, scenes) {
   const isEnding = scene.kind === 'ending';
   const primaryAction = scene.restartOnly ? 'restart' : 'complete';
+  const previousAction = state.currentScene > 0 ? 'prev' : 'practice';
+  const previousLabel = state.currentScene > 0 ? '上一段' : '练习模式';
   const previewKey = scene.kind === 'choice' ? getChoicePreviewKey(scene.slot) : null;
   const primaryDisabled = !isEnding
     && !scene.restartOnly
@@ -1133,7 +1171,7 @@ function renderSceneActions(scene, scenes) {
     && (!previewKey || !canUseSoulAtSlot(scene.slot, previewKey));
   return `
     <div class="scene-actions">
-      <button type="button" class="nav-btn secondary" data-action="prev" ${state.currentScene > 0 ? '' : 'disabled'}>上一段</button>
+      <button type="button" class="nav-btn secondary" data-action="${previousAction}">${previousLabel}</button>
       <button type="button" class="nav-btn primary" data-action="${primaryAction}" ${isEnding || primaryDisabled ? 'disabled' : ''}>${getPrimaryActionLabel(scene)}</button>
     </div>
   `;
@@ -1685,6 +1723,9 @@ function getPrimaryActionLabel(scene) {
 function renderEmbeddedMatch(scene) {
   const firstDay = scene.day === 1;
   const actionClass = firstDay ? ' four' : ' three';
+  const exitLabel = scene.practice ? '返回第一页' : '返回剧情';
+  const metaLabel = scene.practice ? '可随时退出' : firstDay ? '可认输推进' : '必须获胜';
+  const liveHint = scene.practice ? getDefaultLiveHint(scene) : DEFAULT_MATCH_PROGRESS.hint;
   return `
     <div class="story-game-shell">
       <div class="story-game-board">
@@ -1703,13 +1744,13 @@ function renderEmbeddedMatch(scene) {
           <button type="button" class="nav-btn secondary compact" data-game-command="restart">重开</button>
           <button type="button" class="nav-btn secondary compact" data-game-command="undo">悔棋</button>
           ${firstDay ? '<button type="button" class="nav-btn primary compact" data-game-command="resign">认输</button>' : ''}
-          <button type="button" class="nav-btn secondary compact" data-action="exit-match">返回剧情</button>
+          <button type="button" class="nav-btn secondary compact" data-action="exit-match">${exitLabel}</button>
         </div>
       </div>
       <div class="story-game-side">
         <div class="story-game-meta">
           <span>${scene.matchTitle}</span>
-          <strong>${firstDay ? '可认输推进' : '必须获胜'}</strong>
+          <strong>${metaLabel}</strong>
         </div>
         <section class="story-side-card story-winrate" aria-label="你的胜率">
           <div class="story-side-title">
@@ -1728,7 +1769,7 @@ function renderEmbeddedMatch(scene) {
               <small id="story-round-text">${DEFAULT_MATCH_PROGRESS.roundText}</small>
             </span>
           </div>
-          <div class="story-live-hint" id="story-live-hint" data-default-hint="${escapeAttr(getDefaultLiveHint(scene))}">${DEFAULT_MATCH_PROGRESS.hint}</div>
+          <div class="story-live-hint" id="story-live-hint" data-default-hint="${escapeAttr(getDefaultLiveHint(scene))}">${liveHint}</div>
         </section>
       </div>
     </div>
@@ -1736,6 +1777,7 @@ function renderEmbeddedMatch(scene) {
 }
 
 function getDefaultLiveHint(scene) {
+  if (scene.practice) return '练习模式：双方七魂全觉醒，不影响剧情进度。点击带星棋子查看完整棋魂能力。';
   if (scene.day === 1) return '第一局没有棋魂，先感受旧棋盘里的差距。';
   if (scene.day === 10) return `让魂挑战：你已让出${formatHandicapKeys()}，当前让魂分 ${getHandicapScore()}。`;
   if (scene.day === 9) return '双方全魂觉醒。点击带星棋子，查看它此刻能打出的能力。';
@@ -1799,6 +1841,15 @@ function buildSideMatchConfig(day, playerUpgrades, aiUpgrades) {
 }
 
 function getMatchConfig(scene) {
+  if (scene.practice) {
+    return {
+      levelId: 199,
+      mode: 'kw',
+      aiTime: 5000,
+      aiStrength: 'story',
+      ...buildSideMatchConfig(9, ALL_PIECE_KEYS, ALL_PIECE_KEYS),
+    };
+  }
   if (scene.day === 10) {
     const disabled = sanitizeHandicapIds(state.handicapDisabled);
     const playerUpgrades = getHandicapEnabledKeys(disabled);
@@ -1885,6 +1936,16 @@ function completeMatchFromGame(scene, stats) {
   }
   saveAutoClearanceIfNeeded();
   saveState();
+  showMatchFinishedPanel(scene, true);
+}
+
+function completePracticeMatchFromGame(scene, stats) {
+  state.matchResults[scene.id] = {
+    outcome: stats?.outcome || 'unknown',
+    win: !!stats?.win,
+    totalMoves: Math.max(0, Math.trunc(Number(stats?.totalMoves) || 0)),
+    totalKills: Object.values(stats?.redKillsByType || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0),
+  };
   showMatchFinishedPanel(scene, true);
 }
 
@@ -1989,8 +2050,12 @@ function handleGameMessage(event) {
   }
   if (event.data.type !== 'game-end') return;
   const scenes = buildScenes();
-  const scene = scenes[state.currentScene];
+  const scene = state.activeMatch === PRACTICE_MATCH_SCENE.id ? PRACTICE_MATCH_SCENE : scenes[state.currentScene];
   if (!scene || scene.kind !== 'match' || state.activeMatch !== scene.id) return;
+  if (scene.practice) {
+    completePracticeMatchFromGame(scene, event.data.stats || {});
+    return;
+  }
   completeMatchFromGame(scene, event.data.stats || {});
 }
 
@@ -2027,7 +2092,7 @@ function resetMatchPanel() {
     if (fill) fill.style.width = `${DEFAULT_MATCH_PROGRESS.playerPct}%`;
     const hint = document.querySelector('#story-live-hint');
     if (hint) {
-      hint.textContent = DEFAULT_MATCH_PROGRESS.hint;
+      hint.textContent = hint.dataset.defaultHint || DEFAULT_MATCH_PROGRESS.hint;
       hint.classList.remove('active');
     }
   });
@@ -2076,7 +2141,11 @@ function showMatchFinishedPanel(scene, goalReached) {
   setMatchUndoDisabled(false);
   const hint = document.querySelector('#story-live-hint');
   if (hint) {
-    if (scene.day === 1) {
+    if (scene.practice) {
+      hint.textContent = result?.win
+        ? '练习结束。你吃掉了 AI 的王，这一局不会影响剧情进度。'
+        : '练习结束。AI 吃掉了你的王，这一局不会影响剧情进度。';
+    } else if (scene.day === 1) {
       hint.textContent = result?.win
         ? '第一局结束。你吃掉了 AI 的王，赢下旧棋盘上的最后一段路。'
         : '第一局结束。AI 吃掉了你的王，旧棋盘里的路被它一点点算完了。';
@@ -2093,7 +2162,9 @@ function showMatchFinishedPanel(scene, goalReached) {
   }
   const exitButton = document.querySelector('[data-action="exit-match"]');
   if (exitButton) {
-    exitButton.textContent = scene.day === 1 && result?.win
+    exitButton.textContent = scene.practice
+      ? '返回第一页'
+      : scene.day === 1 && result?.win
       ? '查看结局'
       : goalReached ? '继续剧情' : '返回剧情';
   }
@@ -2149,6 +2220,7 @@ function bindEvents() {
 function handleStoryAction(button, event) {
   const action = button.dataset.action;
   if (action === 'complete') completeCurrentScene();
+  if (action === 'practice') startPracticeMatch();
   if (action === 'replay-match') startMatch(buildScenes()[state.currentScene]);
   if (action === 'prev') goScene(state.currentScene - 1);
   if (action === 'next') goScene(state.currentScene + 1);
@@ -2187,6 +2259,7 @@ function bindLegacyEvents() {
     button.addEventListener('click', (event) => {
       const action = button.dataset.action;
       if (action === 'complete') completeCurrentScene();
+      if (action === 'practice') startPracticeMatch();
       if (action === 'replay-match') startMatch(buildScenes()[state.currentScene]);
       if (action === 'prev') goScene(state.currentScene - 1);
       if (action === 'next') goScene(state.currentScene + 1);
