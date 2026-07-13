@@ -3733,7 +3733,7 @@ function createAI() {
 
   function ensureSearchTables() {
     if (tt) return;
-    tt = new Array(TT_SIZE).fill(null);
+    tt = new Map();
     killers = Array.from({ length: MAX_PLY }, () => [null, null]);
     historyTab = Array.from({ length: 90 }, () => new Int32Array(90));
     counterTab = Array.from({ length: 90 }, () => new Array(90).fill(null));
@@ -3741,7 +3741,7 @@ function createAI() {
 
   function ttProbe(hash, depth, alpha, beta) {
     ensureSearchTables();
-    const e = tt[hash & TT_MASK];
+    const e = tt.get(hash & TT_MASK);
     if (!e || e.hash !== hash) return null;
     if (e.depth >= depth) {
       if (e.flag === TT_EXACT) return { score: e.score, move: e.move };
@@ -3753,7 +3753,11 @@ function createAI() {
   function ttStore(hash, depth, score, flag, move) {
     ensureSearchTables();
     const i = hash & TT_MASK;
-    if (!tt[i] || tt[i].depth <= depth) tt[i] = { hash, depth, score, flag, move };
+    const old = tt.get(i);
+    if (!old || old.depth <= depth) {
+      if (tt.size > TT_SIZE) tt.clear();
+      tt.set(i, { hash, depth, score, flag, move });
+    }
   }
 
   // ══════════════════════════════════════════════
@@ -4515,7 +4519,7 @@ function createAI() {
 
   function quiescence(board, alpha, beta, owner, dl, qd) {
     nodes++;
-    if ((nodes & 511) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if ((nodes & 63) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
     if (!findKing(board, owner)) return -99999;
     if (!findKing(board, enemy(owner))) return 99999;
 
@@ -4574,7 +4578,7 @@ function createAI() {
 
   function negamax(board, depth, alpha, beta, owner, dl, ply, doNull, extSoFar = 0, prevMv = null) {
     nodes++;
-    if ((nodes & 255) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
+    if ((nodes & 31) === 0 && (Date.now() > dl || ponderAbort)) { stopped = true; return 0; }
     if (!findKing(board, owner)) return -99999 - depth;
     if (!findKing(board, enemy(owner))) return 99999 + depth;
     if (depth <= 0) return quiescence(board, alpha, beta, owner, dl, QS_MAX);
@@ -4960,7 +4964,7 @@ function createAI() {
     if (!best && moves.length) {
       best = (_CLASSIC || mixedUsesClassicSearchProfile()) ? classicTwoPlyFallback(board, owner, moves) : fallbackRootMove(board, owner, moves);
     }
-    if (usesRootTacticalSanity() && best) best = classicRootTacticalSanity(board, owner, moves, best);
+    if (usesRootTacticalSanity() && best) best = classicRootTacticalSanity(board, owner, moves, best, dl);
     return best;
   }
 
@@ -4994,6 +4998,24 @@ function createAI() {
       if (score > bestScore) { bestScore = score; bestMove = m; }
     }
     return bestMove;
+  }
+
+  function quickFallbackRootMove(board, owner, moves, deadline = Infinity) {
+    let bestMove = null;
+    let bestScore = -Infinity;
+    for (const m of moves.slice(0, 32)) {
+      if (Date.now() > deadline) break;
+      const { board: nb, kingCaptured: kc } = applyMove(board, m.srcCol, m.srcRow, m);
+      if (!searchMoveAllowedAfter(nb, owner, kc) || createsKnownRepetition(nb, enemy(owner), 1)) continue;
+      if (kc === enemy(owner)) return m;
+      const redScore = kc === RED ? -99980 : kc === BLACK ? 99980 : kc === 'draw' ? 0 : evaluate(nb, RED);
+      const score = owner === RED ? redScore : -redScore;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = m;
+      }
+    }
+    return bestMove || moves[0] || null;
   }
 
   function classicTwoPlyFallback(board, owner, moves) {
@@ -5109,8 +5131,9 @@ function createAI() {
     ensureSearchTables();
     const totalMs = Math.max(80, Math.trunc(Number(ms) || 0));
     const start = Date.now();
-    const sliceMs = Math.min(totalMs, totalMs >= 5500 ? 3200 : totalMs >= 3500 ? 1400 : 800);
+    const sliceMs = Math.min(totalMs, totalMs >= 1000 ? 70 : 50);
     let best = null;
+    let emergencyBest = null;
     let lastScores = null;
     let prevScore = 0;
     let depth = 1;
@@ -5140,6 +5163,7 @@ function createAI() {
         best = result.best;
         lastScores = result.scores || lastScores;
       }
+      if (result.best) emergencyBest = result.best;
       if (result.completed) prevScore = result.score;
       if (result.completed) {
         console.log(`AI depth${depth}: ${result.score} (${nodes}节点)`);
@@ -5152,17 +5176,17 @@ function createAI() {
 
     if (best && !_CLASSIC && !mixedUsesClassicSearchProfile()) best = pickRootVariety(lastScores, best);
     if (!ponderAbort && shouldContinue() && !best) {
-      best = (_CLASSIC || mixedUsesClassicSearchProfile()) ? classicTwoPlyFallback(board, owner, moves) : fallbackRootMove(board, owner, moves);
+      best = emergencyBest || quickFallbackRootMove(board, owner, moves, Date.now() + 50);
     }
     if (!ponderAbort && shouldContinue() && usesRootTacticalSanity() && best) {
-      best = classicRootTacticalSanity(board, owner, moves, best);
+      best = classicRootTacticalSanity(board, owner, moves, best, Date.now() + 50);
     }
     return ponderAbort || !shouldContinue() ? null : best;
   }
 
   function clearTT() {
     if (!tt) return;
-    tt.fill(null);
+    tt.clear();
     for (const row of historyTab) row.fill(0);
     for (const row of counterTab) row.fill(null);
   }
@@ -5247,13 +5271,22 @@ function createAI() {
     return ownerScore - immediateTradePenalty(board, owner, move, nb, kc);
   }
 
-  function classicRootTacticalSanity(board, owner, moves, currentBest) {
+  function rootSanityOwnerScore(board, owner, move, deadline = Infinity) {
+    if (_CLASSIC || mixedUsesClassicSearchProfile()) return classicMoveSettledOwnerScore(board, owner, move);
+    const first = redScoreAfterMove(board, owner, move);
+    if (!first) return -Infinity;
+    return owner === RED ? first.score : -first.score;
+  }
+
+  function classicRootTacticalSanity(board, owner, moves, currentBest, deadline = Infinity) {
     if (!usesRootTacticalSanity() || !currentBest) return currentBest;
     let best = currentBest;
-    let bestScore = classicMoveSettledOwnerScore(board, owner, currentBest);
+    let bestScore = rootSanityOwnerScore(board, owner, currentBest, deadline);
     const margin = _CLASSIC ? 160 : 80;
-    for (const move of moves) {
-      const score = classicMoveSettledOwnerScore(board, owner, move);
+    const limit = _CLASSIC || mixedUsesClassicSearchProfile() ? 24 : 12;
+    for (const move of moves.slice(0, limit)) {
+      if (Date.now() > deadline) break;
+      const score = rootSanityOwnerScore(board, owner, move, deadline);
       if (score > bestScore + margin) {
         best = move;
         bestScore = score;
@@ -5266,18 +5299,32 @@ function createAI() {
     return true;
   }
 
-  function bestReplyAdjustedRedScore(board, owner, move) {
+  const DISPLAY_EVAL_BUDGET_MS = 50;
+  const DISPLAY_ROOT_LIMIT = _CLASSIC ? 20 : 14;
+  const DISPLAY_REPLY_LIMIT = _CLASSIC ? 20 : 14;
+
+  function orderedDisplayMoves(board, owner, moves, limit) {
+    const ttHit = ttProbe(hashBoard(board, owner), 0, 0, 0);
+    const ttM = ttHit?.move || null;
+    return moves
+      .slice()
+      .sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null))
+      .slice(0, limit);
+  }
+
+  function bestReplyAdjustedRedScore(board, owner, move, deadline = Infinity) {
     const first = redScoreAfterMove(board, owner, move);
     if (!first) return null;
     if (first.terminal) return first.score;
 
     const replyOwner = enemy(owner);
-    const replies = genAll(first.board, replyOwner);
+    const replies = orderedDisplayMoves(first.board, replyOwner, genAll(first.board, replyOwner), DISPLAY_REPLY_LIMIT);
     let hasReply = false;
     let bestReplyScoreForReplyOwner = -Infinity;
     let replyRedScore = first.score;
 
     for (const reply of replies) {
+      if (Date.now() > deadline) break;
       const next = redScoreAfterMove(first.board, replyOwner, reply);
       if (!next) continue;
       hasReply = true;
@@ -5297,14 +5344,16 @@ function createAI() {
     const owner = nextMover || RED;
     const terminal = terminalRedScore(board, owner);
     if (terminal !== null) return terminal;
-    if (_CLASSIC) return classicCaptureSettledRedScore(board, owner);
+    if (_CLASSIC) return quickEval(board, owner);
+    const deadline = Date.now() + DISPLAY_EVAL_BUDGET_MS;
     const baseRedScore = evaluate(board, RED);
-    const moves = genAll(board, owner);
+    const moves = orderedDisplayMoves(board, owner, genAll(board, owner), DISPLAY_ROOT_LIMIT);
     if (!moves.length) return baseRedScore;
     let bestOwnerScore = -Infinity;
     let bestAfterReplyRedScore = baseRedScore;
     for (const move of moves) {
-      const redScore = bestReplyAdjustedRedScore(board, owner, move);
+      if (Date.now() > deadline) break;
+      const redScore = bestReplyAdjustedRedScore(board, owner, move, deadline);
       if (redScore === null) continue;
       const ownerScore = owner === RED ? redScore : -redScore;
       if (ownerScore > bestOwnerScore) {
@@ -5499,24 +5548,8 @@ async function triggerAI() {
 
   await executeMove(move);
 
-  // ── 持续 Pondering：AI 走完后利用对手全部思考时间 ──
-  if (aiState.enabled && !game.gameOver && game.turn !== aiState.side) {
-    aiState.pondering = true;
-    const ponderTick = () => {
-      if (!aiState.enabled || game.gameOver || game.turn === aiState.side || aiState.thinking) {
-        aiState.pondering = false;
-        return;
-      }
-      AI.ponderLoop(game.board, game.turn, 120, game.history);
-      if (!aiState.enabled || game.gameOver || game.turn === aiState.side || aiState.thinking) {
-        aiState.pondering = false;
-        return;
-      }
-      // 让出主线程一帧后继续下一轮思考
-      aiState.ponderTimer = setTimeout(ponderTick, 20);
-    };
-    aiState.ponderTimer = setTimeout(ponderTick, 200);
-  }
+  aiState.pondering = false;
+  aiState.ponderTimer = null;
 }
 
 // AI toggle removed — controlled via URL param ?ai=1
