@@ -5303,13 +5303,41 @@ function createAI() {
   const DISPLAY_ROOT_LIMIT = _CLASSIC ? 20 : 14;
   const DISPLAY_REPLY_LIMIT = _CLASSIC ? 20 : 14;
 
+  function isDisplayCriticalMove(board, move) {
+    if (move.kind === 'eat' || move.kind === 'explode') return true;
+    if (move.kind === 'charge') return !!board[move.row]?.[move.col];
+    return false;
+  }
+
   function orderedDisplayMoves(board, owner, moves, limit) {
     const ttHit = ttProbe(hashBoard(board, owner), 0, 0, 0);
     const ttM = ttHit?.move || null;
-    return moves
+    const sorted = moves
       .slice()
-      .sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null))
-      .slice(0, limit);
+      .sort((a, b) => moveScore(b, board, 0, ttM, null) - moveScore(a, board, 0, ttM, null));
+    const critical = [];
+    const quiet = [];
+    for (const move of sorted) {
+      if (isDisplayCriticalMove(board, move)) critical.push(move);
+      else quiet.push(move);
+    }
+    return critical.concat(quiet.slice(0, Math.max(0, limit - critical.length)));
+  }
+
+  function urgentDisplayRedScore(board, owner, moves) {
+    const ordered = orderedDisplayMoves(board, owner, moves, moves.length);
+    let bestOwnerScore = -Infinity;
+    let bestRedScore = null;
+    for (const move of ordered) {
+      const result = redScoreAfterMove(board, owner, move);
+      if (!result) continue;
+      const ownerScore = owner === RED ? result.score : -result.score;
+      if (ownerScore > bestOwnerScore) {
+        bestOwnerScore = ownerScore;
+        bestRedScore = result.score;
+      }
+    }
+    return bestRedScore;
   }
 
   function bestReplyAdjustedRedScore(board, owner, move, deadline = Infinity) {
@@ -5347,7 +5375,12 @@ function createAI() {
     if (_CLASSIC) return quickEval(board, owner);
     const deadline = Date.now() + DISPLAY_EVAL_BUDGET_MS;
     const baseRedScore = evaluate(board, RED);
-    const moves = orderedDisplayMoves(board, owner, genAll(board, owner), DISPLAY_ROOT_LIMIT);
+    const allMoves = genAll(board, owner);
+    if (assessKingDanger(board, owner) === 'fatal') {
+      const urgentRedScore = urgentDisplayRedScore(board, owner, allMoves);
+      return urgentRedScore === null ? baseRedScore : urgentRedScore;
+    }
+    const moves = orderedDisplayMoves(board, owner, allMoves, DISPLAY_ROOT_LIMIT);
     if (!moves.length) return baseRedScore;
     let bestOwnerScore = -Infinity;
     let bestAfterReplyRedScore = baseRedScore;
